@@ -190,21 +190,25 @@ class MainActivity : Activity() {
         val rules = prefs.rules()
 
         if (!allPermissionsOk()) {
+            // Конкретно: що саме не працює і одна кнопка, яка веде до потрібного кроку.
+            val noA11y = !isAccessibilityEnabled()
             page.addView(card().apply {
                 background = Look.rounded(Look.accentSoft(this@MainActivity), dpf(16))
                 addView(TextView(this@MainActivity).apply {
-                    text = getString(R.string.perm_warning_title)
-                    textSize = 15f
+                    text = getString(if (noA11y) R.string.warn_a11y_title else R.string.perm_warning_title)
+                    textSize = 16f
                     setTypeface(typeface, Typeface.BOLD)
                     setTextColor(Look.text(this@MainActivity))
                 })
                 addView(TextView(this@MainActivity).apply {
-                    text = getString(R.string.perm_warning_text)
+                    text = getString(if (noA11y) R.string.warn_a11y_text else R.string.warn_usage_text)
                     textSize = 13f
-                    setTextColor(Look.accentText(this@MainActivity))
-                    setPadding(0, dp(4), 0, 0)
+                    setTextColor(Look.text(this@MainActivity))
+                    setPadding(0, dp(6), 0, dp(10))
                 })
-                setOnClickListener { showTab(TAB_SETTINGS) }
+                addView(primaryButton(getString(if (noA11y) R.string.warn_a11y_button else R.string.btn_grant)) {
+                    if (noA11y) showAccessibilityHelp() else openUsageAccess()
+                }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
             }, blockParams())
         }
 

@@ -29,7 +29,7 @@
     <string name="protection_note_off">When on, LockTime can’t be uninstalled, stopped or disabled in settings. You can turn protection off here — it takes effect after 72 hours.</string>
     <string name="toast_find_in_list">Find LockTime in the list and turn it on</string>
     <string name="a11y_title">Accessibility service</string>
-    <string name="a11y_message">It’s needed to notice when Instagram, TikTok, etc. are opened and close them when time is up.\n\nSettings → Accessibility → Installed apps → LockTime → turn on.\n\nIf the switch is greyed out with “Restricted setting”, tap “App info”, then ⋮ (top right) → “Allow restricted settings”, and come back here.</string>
+    <string name="a11y_message">It lets LockTime see which app is open and press “Home” when the limit is used up. Nothing else.\n\nAndroid restricts this permission for apps not from Play Store, so it takes a few steps:\n\n1. Tap “Open”, find LockTime under Installed apps and try to turn it on. A “Restricted setting” window appears — tap OK.\n2. Come back and tap “App info”. Top right ⋮ → “Allow restricted settings”, confirm with PIN or fingerprint.\n3. Tap “Open” again → LockTime → turn on → Allow.\n\nSystem pages use the phone’s language.</string>
     <string name="btn_open">Open</string>
     <string name="btn_app_info">App info</string>
     <string name="btn_cancel">Cancel</string>
@@ -196,4 +196,8 @@
     <string name="suffix_min">min</string>
     <string name="suffix_times">times</string>
     <string name="rule_night_hint">Blocks the app completely during night mode.</string>
+    <string name="warn_a11y_title">Blocking is off</string>
+    <string name="warn_a11y_text">LockTime already counts your time, but it can’t close apps until the Accessibility service is turned on. This takes about a minute.</string>
+    <string name="warn_a11y_button">Turn on — step by step</string>
+    <string name="warn_usage_text">Without “Usage access” LockTime can’t see how much time you spend in apps.</string>
 </resources>
