@@ -8,6 +8,8 @@
         tools:ignore="ProtectedPermissions" />
     <!-- Щоб Samsung не «присипляв» блокувальник -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- Попередження «залишилось 15 / 10 / 5 хв» -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- Бачити список встановлених додатків з іконками на головному екрані -->
     <queries>

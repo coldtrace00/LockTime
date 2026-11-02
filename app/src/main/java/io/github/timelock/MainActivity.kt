@@ -3,6 +3,7 @@ package io.github.timelock
 import android.app.Activity
 import android.app.AlertDialog
 import android.app.AppOpsManager
+import android.app.NotificationManager
 import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -10,6 +11,7 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.Drawable
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.os.Process
@@ -41,6 +43,8 @@ class MainActivity : Activity() {
     private lateinit var usageButton: Button
     private lateinit var a11yStatus: TextView
     private lateinit var a11yButton: Button
+    private lateinit var notifStatus: TextView
+    private lateinit var notifButton: Button
     private lateinit var batteryStatus: TextView
     private lateinit var batteryButton: Button
     private lateinit var protectionSwitch: Switch
@@ -76,6 +80,13 @@ class MainActivity : Activity() {
             setOnClickListener { showAccessibilityHelp() }
         }
         header.addView(permissionRow(a11yStatus, a11yButton))
+
+        notifStatus = TextView(this)
+        notifButton = Button(this).apply {
+            text = "Дозволити"
+            setOnClickListener { requestNotifications() }
+        }
+        header.addView(permissionRow(notifStatus, notifButton))
 
         batteryStatus = TextView(this)
         batteryButton = Button(this).apply {
@@ -142,6 +153,10 @@ class MainActivity : Activity() {
         val hasA11y = isAccessibilityEnabled()
         a11yStatus.text = (if (hasA11y) "✅ " else "❌ ") + "Служба спеціальних можливостей"
         a11yButton.visibility = if (hasA11y) View.GONE else View.VISIBLE
+
+        val notif = notificationsEnabled()
+        notifStatus.text = (if (notif) "✅ " else "⚠️ ") + "Сповіщення (за 15/10/5 хв)"
+        notifButton.visibility = if (notif) View.GONE else View.VISIBLE
 
         val pm = getSystemService(PowerManager::class.java)
         val noBatteryLimit = pm?.isIgnoringBatteryOptimizations(packageName) == true
@@ -210,6 +225,40 @@ class MainActivity : Activity() {
             }
             .setNegativeButton("Скасувати", null)
             .show()
+    }
+
+    private fun notificationsEnabled(): Boolean =
+        getSystemService(NotificationManager::class.java)?.areNotificationsEnabled() == true
+
+    private fun requestNotifications() {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), REQ_NOTIFICATIONS)
+        } else {
+            openNotificationSettings()
+        }
+    }
+
+    private fun openNotificationSettings() {
+        safeStart(
+            Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                .putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+        )
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQ_NOTIFICATIONS) {
+            // Якщо системне вікно більше не показується (відмовили двічі) — відкриваємо налаштування.
+            if (!notificationsEnabled()) openNotificationSettings()
+            refreshStatus()
+        }
     }
 
     private fun openBatterySettings() {
@@ -447,6 +496,8 @@ class MainActivity : Activity() {
     }
 
     companion object {
+        private const val REQ_NOTIFICATIONS = 1
+
         fun formatDateTime(millis: Long): String =
             java.text.SimpleDateFormat("d.MM.yyyy 'о' HH:mm", java.util.Locale.getDefault())
                 .format(java.util.Date(millis))

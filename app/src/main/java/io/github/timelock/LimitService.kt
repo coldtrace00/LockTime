@@ -1,12 +1,16 @@
 package io.github.timelock
 
 import android.accessibilityservice.AccessibilityService
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.Intent
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.view.accessibility.AccessibilityEvent
 import android.widget.Toast
+import java.time.LocalDate
 
 /**
  * Серце блокувальника. Android повідомляє службу, коли на екрані з'являється
@@ -21,6 +25,9 @@ class LimitService : AccessibilityService() {
 
     private var lastBlockAt = 0L
     private var lastGuardCheckAt = 0L
+
+    /** "пакет@день" -> найменший поріг (хв), про який уже попередили. */
+    private val warned = HashMap<String, Int>()
 
     private val tick = object : Runnable {
         override fun run() {
@@ -66,7 +73,55 @@ class LimitService : AccessibilityService() {
         if (pkg == null || pkg == packageName) return
         val limitMin = prefs.activeLimits()[pkg] ?: return
         val usedMs = UsageTracker.usageToday(this, setOf(pkg), pkg)[pkg] ?: 0L
-        if (usedMs >= limitMin * 60_000L) block(pkg)
+        val remainingMs = limitMin * 60_000L - usedMs
+        if (remainingMs <= 0L) block(pkg) else maybeWarn(pkg, limitMin, remainingMs)
+    }
+
+    /** Попередження за 15, 10 і 5 хвилин до кінця ліміту. */
+    private fun maybeWarn(pkg: String, limitMin: Int, remainingMs: Long) {
+        val key = pkg + "@" + LocalDate.now().toEpochDay()
+        val alreadyWarned = warned[key] ?: Int.MAX_VALUE
+        // Найменший поріг, який уже перетнули.
+        val crossed = WARN_AT_MINUTES.filter { remainingMs <= it * 60_000L }.minOrNull() ?: return
+        if (crossed >= alreadyWarned) return
+        warned[key] = crossed
+        // Не попереджаємо одразу при відкритті, якщо сам ліміт не більший за поріг
+        // (наприклад, ліміт 10 хв — «залишилось 10 хв» було б зайвим).
+        if (crossed >= limitMin) return
+        showWarning(pkg, remainingMs)
+    }
+
+    private fun showWarning(pkg: String, remainingMs: Long) {
+        val minutes = ((remainingMs + 59_999L) / 60_000L).toInt()
+        val label = try {
+            @Suppress("DEPRECATION")
+            packageManager.getApplicationLabel(packageManager.getApplicationInfo(pkg, 0)).toString()
+        } catch (e: Exception) {
+            pkg
+        }
+        val title = "Залишилось $minutes хв"
+        val text = "Скоро час у «$label» на сьогодні вийде"
+
+        val nm = getSystemService(NotificationManager::class.java)
+        if (nm == null || !nm.areNotificationsEnabled()) {
+            Toast.makeText(this, "$title — $text", Toast.LENGTH_LONG).show()
+            return
+        }
+        nm.createNotificationChannel(
+            NotificationChannel(CHANNEL_ID, "Попередження про ліміт", NotificationManager.IMPORTANCE_HIGH)
+        )
+        val notification = Notification.Builder(this, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setAutoCancel(true)
+            .setTimeoutAfter(2 * 60_000L)
+            .build()
+        try {
+            nm.notify(pkg.hashCode(), notification)
+        } catch (e: SecurityException) {
+            Toast.makeText(this, "$title — $text", Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun block(pkg: String) {
@@ -118,6 +173,8 @@ class LimitService : AccessibilityService() {
 
     companion object {
         private const val TICK_MS = 3000L
+        private const val CHANNEL_ID = "limit_warnings"
+        private val WARN_AT_MINUTES = listOf(15, 10, 5)
 
         private val GUARDED_PACKAGES = setOf(
             "com.android.settings",
