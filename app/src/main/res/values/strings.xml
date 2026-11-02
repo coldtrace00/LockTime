@@ -62,9 +62,9 @@
     <string name="desc_night">at night</string>
     <string name="desc_none">no limits</string>
     <string name="row_no_limit">No limit</string>
-    <string name="status_night">🌙 Night mode</string>
-    <string name="status_opens">⛔ Opens used up</string>
-    <string name="status_time">⛔ Blocked until midnight</string>
+    <string name="status_night">Night mode</string>
+    <string name="status_opens">Opens used up</string>
+    <string name="status_time">Blocked until midnight</string>
     <string name="row_today">Today: %1$s, opened %2$d times</string>
     <string name="row_tomorrow">From tomorrow: %s</string>
     <string name="fmt_minutes">%d min</string>
@@ -95,7 +95,7 @@
     <string name="theme_auto">Auto</string>
     <string name="theme_light">Light</string>
     <string name="theme_dark">Dark</string>
-    <string name="perm_all_ok">✅ All permissions granted</string>
+    <string name="perm_all_ok">All permissions granted</string>
     <string name="night_from_btn">From %s</string>
     <string name="night_to_btn">To %s</string>
     <string name="night_hint">Tap a time to change it. A wider window applies right away, a narrower one from tomorrow.</string>

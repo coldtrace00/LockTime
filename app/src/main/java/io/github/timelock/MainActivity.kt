@@ -18,13 +18,15 @@ import android.os.PowerManager
 import android.os.Process
 import android.provider.Settings
 import android.text.Editable
+import android.text.SpannableStringBuilder
+import android.text.Spanned
+import android.text.style.ForegroundColorSpan
 import android.text.InputType
 import android.text.TextWatcher
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.BaseAdapter
-import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.HorizontalScrollView
@@ -48,13 +50,13 @@ class MainActivity : Activity() {
     private lateinit var permRows: LinearLayout
     private lateinit var permAllOk: TextView
     private lateinit var usageStatus: TextView
-    private lateinit var usageButton: Button
+    private lateinit var usageButton: TextView
     private lateinit var a11yStatus: TextView
-    private lateinit var a11yButton: Button
+    private lateinit var a11yButton: TextView
     private lateinit var notifStatus: TextView
-    private lateinit var notifButton: Button
+    private lateinit var notifButton: TextView
     private lateinit var batteryStatus: TextView
-    private lateinit var batteryButton: Button
+    private lateinit var batteryButton: TextView
     private lateinit var protectionSwitch: Switch
     private lateinit var protectionNote: TextView
     private lateinit var loadingText: TextView
@@ -118,7 +120,7 @@ class MainActivity : Activity() {
         batteryButton = smallButton(getString(R.string.btn_disable)) { openBatterySettings() }
 
         permAllOk = TextView(this).apply {
-            text = getString(R.string.perm_all_ok)
+            text = statusLine(Look.ok(this@MainActivity), getString(R.string.perm_all_ok))
             textSize = 15f
             setTextColor(Look.text(this@MainActivity))
         }
@@ -226,20 +228,20 @@ class MainActivity : Activity() {
 
     private fun refreshStatus() {
         val hasUsage = hasUsageAccess()
-        usageStatus.text = (if (hasUsage) "✅ " else "❌ ") + getString(R.string.perm_usage)
+        usageStatus.text = statusLine(if (hasUsage) Look.ok(this) else Look.danger(this), getString(R.string.perm_usage))
         usageButton.visibility = if (hasUsage) View.GONE else View.VISIBLE
 
         val hasA11y = isAccessibilityEnabled()
-        a11yStatus.text = (if (hasA11y) "✅ " else "❌ ") + getString(R.string.perm_a11y)
+        a11yStatus.text = statusLine(if (hasA11y) Look.ok(this) else Look.danger(this), getString(R.string.perm_a11y))
         a11yButton.visibility = if (hasA11y) View.GONE else View.VISIBLE
 
         val notif = notificationsEnabled()
-        notifStatus.text = (if (notif) "✅ " else "⚠️ ") + getString(R.string.perm_notifications)
+        notifStatus.text = statusLine(if (notif) Look.ok(this) else Look.warn(this), getString(R.string.perm_notifications))
         notifButton.visibility = if (notif) View.GONE else View.VISIBLE
 
         val pm = getSystemService(PowerManager::class.java)
         val noBatteryLimit = pm?.isIgnoringBatteryOptimizations(packageName) == true
-        batteryStatus.text = (if (noBatteryLimit) "✅ " else "⚠️ ") + getString(R.string.perm_battery)
+        batteryStatus.text = statusLine(if (noBatteryLimit) Look.ok(this) else Look.warn(this), getString(R.string.perm_battery))
         batteryButton.visibility = if (noBatteryLimit) View.GONE else View.VISIBLE
 
         // Коли все надано — показуємо один рядок замість чотирьох.
@@ -541,7 +543,7 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(24), 0, dp(24), dp(8))
 
-            addView(dialogSection("⏱  " + getString(R.string.dlg_time)))
+            addView(dialogSection(getString(R.string.dlg_time)))
             addView(fieldLabel(getString(R.string.dlg_weekdays)))
             addView(weekdayInput)
             addView(chipRow(weekdayInput, PRESET_MINUTES, minutesLabel))
@@ -549,11 +551,11 @@ class MainActivity : Activity() {
             addView(weekendInput)
             addView(chipRow(weekendInput, PRESET_MINUTES, minutesLabel))
 
-            addView(dialogSection("🚪  " + getString(R.string.dlg_opens)))
+            addView(dialogSection(getString(R.string.dlg_opens)))
             addView(opensInput)
             addView(chipRow(opensInput, PRESET_OPENS) { it.toString() })
 
-            addView(dialogSection("🌙  " + getString(R.string.section_night)))
+            addView(dialogSection(getString(R.string.section_night)))
             addView(nightBox)
 
             addView(mutedText(12f).apply {
@@ -799,14 +801,27 @@ class MainActivity : Activity() {
         setOnClickListener { onClick() }
     }
 
-    private fun smallButton(label: String, onClick: () -> Unit) = Button(this).apply {
+    /** Невелика кнопка-«пігулка» замість сірої системної. */
+    private fun smallButton(label: String, onClick: () -> Unit) = TextView(this).apply {
         text = label
+        textSize = 13f
+        setSingleLine(true)
+        setTextColor(Look.accentText(this@MainActivity))
+        background = Look.rounded(Look.chip(this@MainActivity), dpf(16))
+        setPadding(dp(14), dp(6), dp(14), dp(6))
         setOnClickListener { onClick() }
     }
 
-    private fun permissionRow(status: TextView, button: Button) = LinearLayout(this).apply {
+    /** Рядок стану: маленька кольорова крапка і підпис. */
+    private fun statusLine(color: Int, label: String): CharSequence =
+        SpannableStringBuilder("●  $label").apply {
+            setSpan(ForegroundColorSpan(color), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+
+    private fun permissionRow(status: TextView, button: TextView) = LinearLayout(this).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
+        setPadding(0, dp(5), 0, dp(5))
         status.textSize = 14f
         status.setTextColor(Look.text(this@MainActivity))
         addView(status, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))

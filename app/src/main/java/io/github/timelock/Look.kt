@@ -34,16 +34,18 @@ object Look {
         if (isDark(context)) android.R.style.Theme_Material
         else android.R.style.Theme_Material_Light_DarkActionBar
 
-    // Кольори. Акцент для заливки однаковий, для тексту в темній темі — світліший.
-    const val ACCENT_FILL = 0xFF3B5BDB.toInt()
+    // Спокійна палітра: приглушений індиго, м'які статусні кольори.
+    const val ACCENT_FILL = 0xFF4A5FC1.toInt()
 
-    fun accentText(c: Context) = if (isDark(c)) 0xFF91A7FF.toInt() else ACCENT_FILL
-    fun danger(c: Context) = if (isDark(c)) 0xFFFF8787.toInt() else 0xFFC92A2A.toInt()
-    fun text(c: Context) = if (isDark(c)) 0xFFECECEC.toInt() else 0xFF1A1A1A.toInt()
-    fun muted(c: Context) = if (isDark(c)) 0xFF9E9EA6.toInt() else 0xFF6B6B73.toInt()
-    fun card(c: Context) = if (isDark(c)) 0xFF1E1E24.toInt() else 0xFFF2F3F8.toInt()
-    fun chip(c: Context) = if (isDark(c)) 0xFF2E2E36.toInt() else 0xFFE4E7F2.toInt()
-    fun barEmpty(c: Context) = if (isDark(c)) 0xFF2E2E36.toInt() else 0xFFE4E7F2.toInt()
+    fun accentText(c: Context) = if (isDark(c)) 0xFF9AA8F0.toInt() else ACCENT_FILL
+    fun danger(c: Context) = if (isDark(c)) 0xFFE8867E.toInt() else 0xFFB5473F.toInt()
+    fun ok(c: Context) = if (isDark(c)) 0xFF7CC49A.toInt() else 0xFF3F8F5F.toInt()
+    fun warn(c: Context) = if (isDark(c)) 0xFFE0B070.toInt() else 0xFFB7792A.toInt()
+    fun text(c: Context) = if (isDark(c)) 0xFFE6E7EB.toInt() else 0xFF22252B.toInt()
+    fun muted(c: Context) = if (isDark(c)) 0xFF9A9EA9.toInt() else 0xFF6E7380.toInt()
+    fun card(c: Context) = if (isDark(c)) 0xFF1C1E24.toInt() else 0xFFF4F5F8.toInt()
+    fun chip(c: Context) = if (isDark(c)) 0xFF2A2D35.toInt() else 0xFFE6E9F0.toInt()
+    fun barEmpty(c: Context) = if (isDark(c)) 0xFF2A2D35.toInt() else 0xFFE6E9F0.toInt()
 
     fun rounded(color: Int, radiusPx: Float) = GradientDrawable().apply {
         setColor(color)

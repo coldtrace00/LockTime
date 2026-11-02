@@ -61,9 +61,9 @@
     <string name="desc_night">вночі</string>
     <string name="desc_none">без обмежень</string>
     <string name="row_no_limit">Без ліміту</string>
-    <string name="status_night">🌙 Нічний режим</string>
-    <string name="status_opens">⛔ Відкриття вичерпано</string>
-    <string name="status_time">⛔ Заблоковано до опівночі</string>
+    <string name="status_night">Нічний режим</string>
+    <string name="status_opens">Відкриття вичерпано</string>
+    <string name="status_time">Заблоковано до опівночі</string>
     <string name="row_today">Сьогодні: %1$s, відкрито %2$d р.</string>
     <string name="row_tomorrow">З завтра: %s</string>
     <string name="fmt_minutes">%d хв</string>
@@ -94,7 +94,7 @@
     <string name="theme_auto">Авто</string>
     <string name="theme_light">Світла</string>
     <string name="theme_dark">Темна</string>
-    <string name="perm_all_ok">✅ Усі дозволи надано</string>
+    <string name="perm_all_ok">Усі дозволи надано</string>
     <string name="night_from_btn">З %s</string>
     <string name="night_to_btn">До %s</string>
     <string name="night_hint">Торкніться часу, щоб змінити. Ширше вікно діє одразу, вужче — з завтра.</string>
