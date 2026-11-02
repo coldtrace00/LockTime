@@ -525,6 +525,16 @@ class MainActivity : Activity() {
                 }
                 setPadding(0, dp(8), 0, 0)
             })
+            // Захист працює лише через службу спеціальних можливостей — чесно кажемо, якщо вона вимкнена.
+            if (prefs.protectionEnabled() && !isAccessibilityEnabled()) {
+                addView(TextView(this@MainActivity).apply {
+                    text = getString(R.string.protection_inactive)
+                    textSize = 13f
+                    setTextColor(Look.danger(this@MainActivity))
+                    setPadding(0, dp(8), 0, dp(6))
+                })
+                addView(smallButton(getString(R.string.warn_a11y_button)) { showAccessibilityHelp() })
+            }
         }, blockParams())
 
         // Сповіщення
@@ -837,6 +847,17 @@ class MainActivity : Activity() {
     }
 
     private fun onProtectionToggled(checked: Boolean) {
+        if (checked && !isAccessibilityEnabled()) {
+            // Без служби захист нічого не охороняє — не вмикаємо його «на папері».
+            AlertDialog.Builder(this)
+                .setTitle(R.string.protection_needs_a11y_title)
+                .setMessage(R.string.protection_needs_a11y_message)
+                .setPositiveButton(R.string.warn_a11y_button) { _, _ -> showAccessibilityHelp() }
+                .setNegativeButton(R.string.btn_cancel, null)
+                .setOnDismissListener { render() }
+                .show()
+            return
+        }
         if (checked) {
             AlertDialog.Builder(this)
                 .setTitle(R.string.protect_on_title)

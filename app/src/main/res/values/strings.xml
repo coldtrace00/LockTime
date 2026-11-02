@@ -197,7 +197,10 @@
     <string name="suffix_times">times</string>
     <string name="rule_night_hint">Blocks the app completely during night mode.</string>
     <string name="warn_a11y_title">Blocking is off</string>
-    <string name="warn_a11y_text">LockTime already counts your time, but it can’t close apps until the Accessibility service is turned on. This takes about a minute.</string>
+    <string name="warn_a11y_text">LockTime already counts your time, but it can’t close apps — and uninstall protection doesn’t work — until the Accessibility service is turned on. This takes about a minute.</string>
     <string name="warn_a11y_button">Turn on — step by step</string>
     <string name="warn_usage_text">Without “Usage access” LockTime can’t see how much time you spend in apps.</string>
+    <string name="protection_inactive">Protection is NOT working right now: the Accessibility service is off, so LockTime can be uninstalled.</string>
+    <string name="protection_needs_a11y_title">Turn on the service first</string>
+    <string name="protection_needs_a11y_message">Uninstall protection works through the Accessibility service — it’s what closes the uninstall screen. While the service is off, protection would only exist on paper.\n\nTurn on the service, then come back and enable protection.</string>
 </resources>
