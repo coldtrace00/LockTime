@@ -30,11 +30,12 @@ No passwords, no "5 more minutes", no "ignore for today".
 | Daily limit | Per app. Quick buttons: 5, 10, 15, 30, 45 min, 1 h. Resets at midnight. |
 | Weekend limit | Optionally a different limit for Saturday and Sunday. |
 | Open limit | E.g. Instagram no more than 10 times a day. Fights the "just a quick look" habit. |
-| Night mode | Apps marked "at night" are fully blocked during chosen hours (default 23:00–07:00). |
+| Night mode | Apps marked "at night" are fully blocked during hours you choose — tap "From" or "To" to set them (default 23:00–07:00). |
 | Website blocking | When an app is blocked, its website in the browser (instagram.com, tiktok.com, youtube.com…) is closed too. |
 | Blocking | Back to the home screen plus a screen explaining why. Checked every 3 s, so it kicks in even mid-scroll. |
 | Warnings | Notifications 15, 10 and 5 min before the limit runs out, each once a day. |
 | Statistics | How much time went into each app over the last 7 days. |
+| Appearance | Light, dark or auto theme (follows the phone); UA \| EN language switch. |
 | "Tighten now, loosen tomorrow" | Applies to every setting: time limits, opens, night mode and its hours. |
 | Uninstall protection | Optional. While on, LockTime can't be uninstalled, force-stopped, or have its service disabled. |
 | Removing protection takes 72 h | After the request, the app shows the date and time protection will be lifted. Changing the clock doesn't help. |
@@ -98,6 +99,7 @@ There is always an emergency exit — [safe mode](#honest-limitations).
 | [`StatsActivity.kt`](app/src/main/java/io/github/timelock/StatsActivity.kt) | Weekly statistics. |
 | [`BlockActivity.kt`](app/src/main/java/io/github/timelock/BlockActivity.kt) | Block screen with the reason (time, opens, night). |
 | [`Lang.kt`](app/src/main/java/io/github/timelock/Lang.kt) | Interface language: Ukrainian by default, switchable to English. |
+| [`Look.kt`](app/src/main/java/io/github/timelock/Look.kt) | Theme (auto / light / dark) and the colors for each. |
 | [`res/values*/strings.xml`](app/src/main/res/) | UI texts: `values` — English, `values-uk` — Ukrainian. |
 | [`AndroidManifest.xml`](app/src/main/AndroidManifest.xml) | The full list of permissions — you can verify there's no internet access. |
 
@@ -128,8 +130,9 @@ There is always an emergency exit — [safe mode](#honest-limitations).
   pages can't be opened. Side effect: the general app list may also close while
   the LockTime row is visible in it.
 - **Languages.** All texts live in string resources. Ukrainian is the default
-  regardless of the phone's language; the "Мова / Language" switch at the top
-  of the main screen changes it (`Lang.kt`).
+  regardless of the phone's language; the UA | EN switch at the top of the
+  main screen changes it (`Lang.kt`). The theme switch next to it picks light,
+  dark or auto (`Look.kt`).
 
 ## Honest limitations
 
