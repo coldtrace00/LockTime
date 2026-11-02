@@ -168,8 +168,8 @@ class MainActivity : Activity() {
         protectionSwitch.setOnCheckedChangeListener { _, checked -> onProtectionToggled(checked) }
         val offAt = prefs.protectionOffAt()
         protectionNote.text = when {
-            offAt != null -> "Захист буде знято ${formatDateTime(offAt)}. Після цього LockTime можна " +
-                "видалити. Передумали — увімкніть перемикач знову."
+            offAt != null -> "Захист буде знято орієнтовно ${formatDateTime(offAt)}. Після цього " +
+                "LockTime можна видалити. Передумали — увімкніть перемикач знову."
             prefs.protectionEnabled() -> "Увімкнено: екрани налаштувань, де можна видалити, зупинити " +
                 "чи вимкнути LockTime, одразу закриваються."
             else -> "Коли увімкнено, LockTime не можна видалити, зупинити чи вимкнути в налаштуваннях. " +
@@ -293,6 +293,8 @@ class MainActivity : Activity() {
                     .setTitle("Захист буде знято через 72 години")
                     .setMessage(
                         "Видалити LockTime можна буде ${formatDateTime(offAt)}.\n\n" +
+                            "Відлік іде за внутрішнім таймером, тож переведення годинника не допоможе. " +
+                            "Якщо телефон буде вимкнений, цей час не зараховується і дата зсунеться.\n\n" +
                             "До того часу захист працює як і раніше. Якщо передумаєте — " +
                             "увімкніть перемикач знову, і відлік скасується."
                     )

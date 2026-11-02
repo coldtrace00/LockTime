@@ -22,13 +22,20 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      - name: Build debug APK
+      - name: Build APK
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --stacktrace
-
-      - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk LockTime.apk
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            export KEYSTORE_FILE="$RUNNER_TEMP/release.jks"
+          else
+            echo "::warning::Секрети KEYSTORE_BASE64 / KEYSTORE_PASSWORD не задані — APK підписано тимчасовим ключем, оновлення поверх старої версії може не встановитися."
+          fi
+          ./gradlew assembleRelease --stacktrace
+          cp app/build/outputs/apk/release/app-release.apk LockTime.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4

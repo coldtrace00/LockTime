@@ -1,6 +1,8 @@
 package io.github.timelock
 
 import android.content.Context
+import android.os.SystemClock
+import android.provider.Settings
 import java.time.LocalDate
 
 /**
@@ -15,8 +17,8 @@ class Prefs(context: Context) {
 
     enum class Result { APPLIED, TOMORROW, UNCHANGED }
 
-    private val sp = context.applicationContext
-        .getSharedPreferences("timelock", Context.MODE_PRIVATE)
+    private val appContext = context.applicationContext
+    private val sp = appContext.getSharedPreferences("timelock", Context.MODE_PRIVATE)
 
     private fun today(): Long = LocalDate.now().toEpochDay()
 
@@ -68,16 +70,19 @@ class Prefs(context: Context) {
         return sp.getBoolean(KEY_PROTECTION, false)
     }
 
-    /** Коли захист буде знято (мілісекунди), або null, якщо зняття не заплановано. */
+    /**
+     * Орієнтовний момент зняття захисту (мілісекунди), або null, якщо зняття не заплановано.
+     * Орієнтовний, бо час, коли телефон вимкнений, не зараховується.
+     */
     fun protectionOffAt(): Long? {
         applyPendingIfDue()
-        val at = sp.getLong(KEY_PROTECTION_OFF_AT, 0L)
-        return if (at > 0L) at else null
+        val remaining = sp.getLong(KEY_OFF_REMAINING, -1L)
+        return if (remaining >= 0L) System.currentTimeMillis() + remaining else null
     }
 
     /**
      * Увімкнути захист — одразу (і скасувати заплановане зняття).
-     * Вимкнути — лише через [PROTECTION_OFF_DELAY_MS]; повертає час зняття.
+     * Вимкнути — лише через [PROTECTION_OFF_DELAY_MS]; повертає орієнтовний час зняття.
      */
     @Synchronized
     fun setProtection(on: Boolean): Long? {
@@ -85,17 +90,65 @@ class Prefs(context: Context) {
         if (on) {
             sp.edit()
                 .putBoolean(KEY_PROTECTION, true)
-                .remove(KEY_PROTECTION_OFF_AT)
+                .remove(KEY_OFF_REMAINING)
+                .remove(KEY_OFF_LAST_ELAPSED)
+                .remove(KEY_OFF_LAST_BOOT)
                 .apply()
             return null
         }
         if (!sp.getBoolean(KEY_PROTECTION, false)) return null
-        val existing = sp.getLong(KEY_PROTECTION_OFF_AT, 0L)
-        if (existing > 0L) return existing // повторне натискання не скорочує очікування
-        val at = System.currentTimeMillis() + PROTECTION_OFF_DELAY_MS
-        sp.edit().putLong(KEY_PROTECTION_OFF_AT, at).apply()
-        return at
+        val remaining = sp.getLong(KEY_OFF_REMAINING, -1L)
+        if (remaining >= 0L) {
+            // Повторне натискання не скорочує очікування.
+            return System.currentTimeMillis() + remaining
+        }
+        sp.edit()
+            .putLong(KEY_OFF_REMAINING, PROTECTION_OFF_DELAY_MS)
+            .putLong(KEY_OFF_LAST_ELAPSED, SystemClock.elapsedRealtime())
+            .putInt(KEY_OFF_LAST_BOOT, bootCount())
+            .apply()
+        return System.currentTimeMillis() + PROTECTION_OFF_DELAY_MS
     }
+
+    /**
+     * Відлік зняття захисту йде за «системним секундоміром» (elapsedRealtime),
+     * а не за годинником телефона. Тому переведення дати чи часу в налаштуваннях
+     * нічого не дає: секундомір не можна підкрутити.
+     * Секундомір обнуляється при перезавантаженні — тоді зараховуємо лише час
+     * від увімкнення, а період, коли телефон був вимкнений, втрачається.
+     */
+    private fun tickProtectionCountdown() {
+        var remaining = sp.getLong(KEY_OFF_REMAINING, -1L)
+        if (remaining < 0L) return
+        val nowElapsed = SystemClock.elapsedRealtime()
+        val boot = bootCount()
+        val lastElapsed = sp.getLong(KEY_OFF_LAST_ELAPSED, nowElapsed)
+        val lastBoot = sp.getInt(KEY_OFF_LAST_BOOT, boot)
+        val sameBoot = boot == lastBoot && nowElapsed >= lastElapsed
+        val passed = if (sameBoot) nowElapsed - lastElapsed else nowElapsed
+        remaining -= passed
+        if (remaining <= 0L) {
+            sp.edit()
+                .putBoolean(KEY_PROTECTION, false)
+                .remove(KEY_OFF_REMAINING)
+                .remove(KEY_OFF_LAST_ELAPSED)
+                .remove(KEY_OFF_LAST_BOOT)
+                .apply()
+        } else {
+            sp.edit()
+                .putLong(KEY_OFF_REMAINING, remaining)
+                .putLong(KEY_OFF_LAST_ELAPSED, nowElapsed)
+                .putInt(KEY_OFF_LAST_BOOT, boot)
+                .apply()
+        }
+    }
+
+    private fun bootCount(): Int =
+        try {
+            Settings.Global.getInt(appContext.contentResolver, Settings.Global.BOOT_COUNT, -1)
+        } catch (e: Exception) {
+            -1
+        }
 
     private fun save(active: Map<String, Int>, pending: Map<String, Int>, schedule: Boolean) {
         val e = sp.edit()
@@ -107,10 +160,7 @@ class Prefs(context: Context) {
 
     @Synchronized
     private fun applyPendingIfDue() {
-        val offAt = sp.getLong(KEY_PROTECTION_OFF_AT, 0L)
-        if (offAt > 0L && System.currentTimeMillis() >= offAt) {
-            sp.edit().putBoolean(KEY_PROTECTION, false).remove(KEY_PROTECTION_OFF_AT).apply()
-        }
+        tickProtectionCountdown()
 
         val day = sp.getLong(KEY_PENDING_DAY, Long.MAX_VALUE)
         if (today() < day) return
@@ -148,7 +198,9 @@ class Prefs(context: Context) {
         private const val KEY_PENDING = "pending_limits"
         private const val KEY_PENDING_DAY = "pending_day"
         private const val KEY_PROTECTION = "protection"
-        private const val KEY_PROTECTION_OFF_AT = "protection_off_at"
+        private const val KEY_OFF_REMAINING = "protection_off_remaining"
+        private const val KEY_OFF_LAST_ELAPSED = "protection_off_last_elapsed"
+        private const val KEY_OFF_LAST_BOOT = "protection_off_last_boot"
         const val PROTECTION_OFF_DELAY_MS = 72L * 60 * 60 * 1000
     }
 }
