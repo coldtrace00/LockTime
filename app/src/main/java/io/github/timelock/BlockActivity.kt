@@ -17,7 +17,40 @@ class BlockActivity : Activity() {
 
         val pkg = intent.getStringExtra(EXTRA_PACKAGE)
         val label = pkg?.let { appLabel(it) } ?: "цей додаток"
-        val minutes = pkg?.let { Prefs(this).activeLimits()[it] }
+        val reason = intent.getStringExtra(EXTRA_REASON)
+        val viaBrowser = intent.getBooleanExtra(EXTRA_BROWSER, false)
+        val prefs = Prefs(this)
+        val rule = pkg?.let { prefs.rules()[it] }
+
+        val (icon, title, body) = when (reason) {
+            LimitService.Reason.NIGHT.name -> {
+                val w = prefs.nightWindow()
+                Triple(
+                    "🌙",
+                    "Нічний режим",
+                    "«$label» недоступний з ${MainActivity.formatTime(w.start)} до ${MainActivity.formatTime(w.end)}."
+                )
+            }
+            LimitService.Reason.OPENS.name -> {
+                val n = rule?.opens
+                val limitText = if (n != null) " ($n)" else ""
+                Triple(
+                    "🚪",
+                    "Відкриття на сьогодні вичерпано",
+                    "Ліміт відкриттів «$label»$limitText вичерпано.\nДоступ відновиться опівночі."
+                )
+            }
+            else -> {
+                val minutes = rule?.minutesFor(java.time.LocalDate.now())
+                val limitText = if (minutes != null) " (${MainActivity.formatMinutes(minutes)})" else ""
+                Triple(
+                    "⏳",
+                    "Час на сьогодні вийшов",
+                    "Денний ліміт для «$label»$limitText вичерпано.\nДоступ відновиться опівночі."
+                )
+            }
+        }
+        val fullBody = if (viaBrowser) "$body\n\nСайт у браузері заблоковано разом із додатком." else body
 
         val density = resources.displayMetrics.density
         fun dp(v: Int) = (v * density).toInt()
@@ -30,22 +63,21 @@ class BlockActivity : Activity() {
         }
 
         root.addView(TextView(this).apply {
-            text = "⏳"
+            text = icon
             textSize = 64f
             gravity = Gravity.CENTER
         })
 
         root.addView(TextView(this).apply {
-            text = "Час на сьогодні вийшов"
+            text = title
             textSize = 26f
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
             setPadding(0, dp(16), 0, dp(8))
         })
 
-        val limitText = if (minutes != null) " (${MainActivity.formatMinutes(minutes)})" else ""
         root.addView(TextView(this).apply {
-            text = "Денний ліміт для «$label»$limitText вичерпано.\nДоступ відновиться опівночі."
+            text = fullBody
             textSize = 17f
             setTextColor(Color.parseColor("#C9D3EE"))
             gravity = Gravity.CENTER
@@ -84,5 +116,7 @@ class BlockActivity : Activity() {
 
     companion object {
         const val EXTRA_PACKAGE = "package"
+        const val EXTRA_REASON = "reason"
+        const val EXTRA_BROWSER = "browser"
     }
 }

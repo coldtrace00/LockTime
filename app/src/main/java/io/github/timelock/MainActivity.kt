@@ -4,6 +4,7 @@ import android.app.Activity
 import android.app.AlertDialog
 import android.app.AppOpsManager
 import android.app.NotificationManager
+import android.app.TimePickerDialog
 import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -22,14 +23,17 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.BaseAdapter
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.EditText
-import android.widget.FrameLayout
+import android.widget.HorizontalScrollView
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ListView
+import android.widget.ScrollView
 import android.widget.Switch
 import android.widget.TextView
 import android.widget.Toast
+import java.time.LocalDate
 
 class MainActivity : Activity() {
 
@@ -50,9 +54,10 @@ class MainActivity : Activity() {
     private lateinit var protectionSwitch: Switch
     private lateinit var protectionNote: TextView
     private lateinit var loadingText: TextView
+    private lateinit var nightText: TextView
 
     private var apps: List<AppItem> = emptyList()
-    private var usage: Map<String, Long> = emptyMap()
+    private var usage: Map<String, AppUsage> = emptyMap()
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
@@ -108,9 +113,23 @@ class MainActivity : Activity() {
         }
         header.addView(protectionNote)
 
+        header.addView(sectionTitle("Нічний режим"))
+        nightText = TextView(this).apply { textSize = 14f }
+        header.addView(nightText)
+        header.addView(Button(this).apply {
+            text = "Змінити час"
+            setOnClickListener { pickNightWindow() }
+        })
+
+        header.addView(sectionTitle("Статистика"))
+        header.addView(Button(this).apply {
+            text = "Статистика за тиждень"
+            setOnClickListener { startActivity(Intent(this@MainActivity, StatsActivity::class.java)) }
+        })
+
         header.addView(sectionTitle("Додатки"))
         header.addView(TextView(this).apply {
-            text = "Торкніться додатка, щоб задати денний ліміт. Посилити ліміт можна одразу, " +
+            text = "Торкніться додатка, щоб задати ліміти. Посилити можна одразу, " +
                 "а послабити чи прибрати — лише з наступного дня."
             textSize = 13f
             setTextColor(Color.GRAY)
@@ -166,6 +185,20 @@ class MainActivity : Activity() {
         protectionSwitch.setOnCheckedChangeListener(null)
         protectionSwitch.isChecked = prefs.protectionEnabled() && prefs.protectionOffAt() == null
         protectionSwitch.setOnCheckedChangeListener { _, checked -> onProtectionToggled(checked) }
+        val w = prefs.nightWindow()
+        val nightApps = prefs.rules().values.count { it.night }
+        val pendingNight = prefs.pendingNightWindow()
+        nightText.text = buildString {
+            append("З ").append(formatTime(w.start)).append(" до ").append(formatTime(w.end))
+            append(" блокуються додатки з позначкою «вночі»")
+            append(if (nightApps == 0) " (поки жодного)." else " ($nightApps).")
+            if (w.coversNow() && nightApps > 0) append("\nЗараз нічний режим діє.")
+            if (pendingNight != null) {
+                append("\nЗ завтра: ").append(formatTime(pendingNight.start))
+                    .append("–").append(formatTime(pendingNight.end)).append(".")
+            }
+        }
+
         val offAt = prefs.protectionOffAt()
         protectionNote.text = when {
             offAt != null -> "Захист буде знято орієнтовно ${formatDateTime(offAt)}. Після цього " +
@@ -343,7 +376,7 @@ class MainActivity : Activity() {
     }
 
     private fun sortApps() {
-        val limited = prefs.activeLimits().keys + prefs.pendingLimits().keys
+        val limited = prefs.rules().keys + prefs.pendingRules().keys
         apps = apps.sortedWith(
             compareBy<AppItem>({ if (it.pkg in limited) 0 else 1 }, { it.label.lowercase() })
         )
@@ -351,61 +384,159 @@ class MainActivity : Activity() {
 
     private fun refreshUsage() {
         usage = if (hasUsageAccess()) {
-            UsageTracker.usageToday(this, prefs.activeLimits().keys, null)
+            UsageTracker.usageToday(this, prefs.rules().keys, null)
         } else {
             emptyMap()
         }
     }
 
-    private fun showLimitDialog(app: AppItem) {
-        val current = prefs.activeLimits()[app.pkg]
-        val input = EditText(this).apply {
-            inputType = InputType.TYPE_CLASS_NUMBER
-            hint = "хвилин на день"
-            setText((current ?: 60).toString())
-            setSelectAllOnFocus(true)
+    // ---------- Нічний режим ----------
+
+    private fun pickNightWindow() {
+        val current = prefs.pendingNightWindow() ?: prefs.nightWindow()
+        TimePickerDialog(this, { _, h1, m1 ->
+            val start = h1 * 60 + m1
+            TimePickerDialog(this, { _, h2, m2 ->
+                val end = h2 * 60 + m2
+                if (start == end) {
+                    Toast.makeText(this, "Початок і кінець не можуть збігатися", Toast.LENGTH_LONG).show()
+                } else {
+                    showResult(prefs.setNightWindow(NightWindow(start, end)))
+                    refreshStatus()
+                }
+            }, current.end / 60, current.end % 60, true).apply {
+                setTitle("До котрої години")
+            }.show()
+        }, current.start / 60, current.start % 60, true).apply {
+            setTitle("З котрої години")
+        }.show()
+    }
+
+    // ---------- Діалог правил ----------
+
+    private fun minutesField(value: Int?, hintText: String) = EditText(this).apply {
+        inputType = InputType.TYPE_CLASS_NUMBER
+        hint = hintText
+        setText(value?.toString() ?: "")
+        setSelectAllOnFocus(true)
+    }
+
+    /** Ряд швидких кнопок: 5 хв, 10, 15, 30, 45, 1 год. */
+    private fun presets(target: EditText) = HorizontalScrollView(this).apply {
+        isHorizontalScrollBarEnabled = false
+        val row = LinearLayout(this@MainActivity).apply { orientation = LinearLayout.HORIZONTAL }
+        for (m in PRESET_MINUTES) {
+            row.addView(Button(this@MainActivity).apply {
+                text = formatMinutes(m)
+                textSize = 12f
+                setAllCaps(false)
+                minWidth = 0
+                minimumWidth = 0
+                setPadding(dp(10), 0, dp(10), 0)
+                setOnClickListener {
+                    target.setText(m.toString())
+                    target.setSelection(target.text.length)
+                }
+            })
         }
-        val box = FrameLayout(this).apply {
-            setPadding(dp(24), dp(8), dp(24), 0)
-            addView(input)
+        addView(row)
+    }
+
+    private fun label(text: String) = TextView(this).apply {
+        this.text = text
+        textSize = 14f
+        setPadding(0, dp(12), 0, 0)
+    }
+
+    private fun showLimitDialog(app: AppItem) {
+        val current = prefs.rules()[app.pkg]
+        val shown = prefs.pendingRules()[app.pkg] ?: current ?: Rule()
+
+        val weekdayInput = minutesField(shown.weekday, "без обмеження")
+        val weekendInput = minutesField(shown.weekend, "як у будні")
+        val opensInput = minutesField(shown.opens, "без обмеження")
+        val nightBox = CheckBox(this).apply {
+            val w = prefs.nightWindow()
+            text = "Блокувати в нічний режим (${formatTime(w.start)}–${formatTime(w.end)})"
+            isChecked = shown.night
+        }
+
+        val form = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(24), dp(4), dp(24), 0)
+            addView(label("Хвилин на день у будні"))
+            addView(weekdayInput)
+            addView(presets(weekdayInput))
+            addView(label("Хвилин на день у вихідні (сб, нд)"))
+            addView(weekendInput)
+            addView(presets(weekendInput))
+            addView(label("Скільки разів на день можна відкрити"))
+            addView(opensInput)
+            addView(nightBox.apply { setPadding(0, dp(12), 0, 0) })
+            addView(TextView(this@MainActivity).apply {
+                text = "Порожнє поле — без обмеження. Посилити можна одразу, послабити — з завтра."
+                textSize = 12f
+                setTextColor(Color.GRAY)
+                setPadding(0, dp(12), 0, dp(8))
+            })
         }
 
         val builder = AlertDialog.Builder(this)
             .setTitle(app.label)
-            .setMessage(
-                "Скільки хвилин на день можна користуватися цим додатком?\n" +
-                    "Наприклад: 60 = 1 година."
-            )
-            .setView(box)
+            .setView(ScrollView(this).apply { addView(form) })
             .setPositiveButton("Зберегти") { _, _ ->
-                val minutes = input.text.toString().toIntOrNull()
-                if (minutes == null || minutes <= 0) {
-                    Toast.makeText(this, "Введіть кількість хвилин, більшу за 0", Toast.LENGTH_SHORT).show()
-                } else {
-                    applyLimit(app.pkg, minutes)
-                }
+                fun parse(e: EditText) = e.text.toString().toIntOrNull()?.takeIf { it > 0 }
+                val rule = Rule(
+                    weekday = parse(weekdayInput)?.coerceAtMost(Prefs.MAX_MINUTES),
+                    weekend = parse(weekendInput)?.coerceAtMost(Prefs.MAX_MINUTES),
+                    opens = parse(opensInput),
+                    night = nightBox.isChecked
+                )
+                applyRule(app.pkg, rule)
             }
             .setNegativeButton("Скасувати", null)
         if (current != null) {
-            builder.setNeutralButton("Прибрати ліміт") { _, _ -> applyLimit(app.pkg, 0) }
+            builder.setNeutralButton("Прибрати все") { _, _ -> applyRule(app.pkg, Rule()) }
         }
         builder.show()
     }
 
-    private fun applyLimit(pkg: String, minutes: Int) {
-        when (prefs.setLimit(pkg, minutes)) {
-            Prefs.Result.APPLIED ->
-                Toast.makeText(this, "Збережено", Toast.LENGTH_SHORT).show()
-            Prefs.Result.TOMORROW ->
-                Toast.makeText(this, "Послаблення ліміту запрацює завтра", Toast.LENGTH_LONG).show()
-            Prefs.Result.UNCHANGED -> {}
-        }
+    private fun applyRule(pkg: String, rule: Rule) {
+        showResult(prefs.setRule(pkg, rule))
         if (!isAccessibilityEnabled() || !hasUsageAccess()) {
             Toast.makeText(this, "Щоб блокування працювало, надайте дозволи вгорі", Toast.LENGTH_LONG).show()
         }
         sortApps()
         refreshUsage()
+        refreshStatus()
         adapter.notifyDataSetChanged()
+    }
+
+    private fun showResult(result: Prefs.Result) {
+        val msg = when (result) {
+            Prefs.Result.APPLIED -> "Збережено"
+            Prefs.Result.PARTLY -> "Суворіші зміни вже діють, послаблення — з завтра"
+            Prefs.Result.TOMORROW -> "Послаблення запрацює завтра"
+            Prefs.Result.UNCHANGED -> return
+        }
+        Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+    }
+
+    private fun describe(rule: Rule): String {
+        val parts = mutableListOf<String>()
+        val wd = rule.weekday
+        val we = rule.weekend
+        when {
+            wd != null && we != null -> {
+                parts.add("будні ${formatMinutes(wd)}")
+                parts.add("вихідні ${formatMinutes(we)}")
+            }
+            we != null -> parts.add("вихідні ${formatMinutes(we)}")
+            wd != null -> parts.add(formatMinutes(wd) + " на день")
+        }
+        rule.opens?.let { parts.add("до $it відкр.") }
+        if (rule.night) parts.add("вночі")
+        return if (parts.isEmpty()) "без обмежень" else parts.joinToString(" · ")
     }
 
     // ---------- Рядок списку ----------
@@ -451,28 +582,39 @@ class MainActivity : Activity() {
             holder.icon.setImageDrawable(app.icon)
             holder.name.text = app.label
 
-            val limit = prefs.activeLimits()[app.pkg]
-            val pending = prefs.pendingLimits()
-            val used = usage[app.pkg] ?: 0L
-            val blocked = limit != null && used >= limit * 60_000L
+            val rule = prefs.rules()[app.pkg]
+            val pending = prefs.pendingRules()[app.pkg]
+            val used = usage[app.pkg] ?: AppUsage()
 
+            var blocked = false
             val sb = StringBuilder()
-            if (limit == null) {
+            if (rule == null) {
                 sb.append("Без ліміту")
             } else {
-                if (blocked) sb.append("⛔ Заблоковано до опівночі · ")
-                sb.append("Ліміт: ").append(formatMinutes(limit))
-                sb.append(" · сьогодні: ").append(formatMinutes((used / 60_000L).toInt()))
+                val limitMin = rule.minutesFor(LocalDate.now())
+                val maxOpens = rule.opens
+                val status = when {
+                    rule.night && prefs.nightWindow().coversNow() -> "🌙 Нічний режим"
+                    maxOpens != null && used.opens >= maxOpens -> "⛔ Відкриття вичерпано"
+                    limitMin != null && used.timeMs >= limitMin * 60_000L -> "⛔ Заблоковано до опівночі"
+                    else -> null
+                }
+                if (status != null) {
+                    blocked = true
+                    sb.append(status).append("\n")
+                }
+                sb.append(describe(rule))
+                sb.append("\nСьогодні: ").append(formatMinutes((used.timeMs / 60_000L).toInt()))
+                sb.append(", відкрито ").append(used.opens).append(" р.")
             }
-            if (pending.containsKey(app.pkg)) {
-                val p = pending[app.pkg] ?: 0
-                sb.append("\nЗ завтра: ").append(if (p <= 0) "без ліміту" else formatMinutes(p))
+            if (pending != null) {
+                sb.append("\nЗ завтра: ").append(describe(pending))
             }
             holder.subtitle.text = sb.toString()
             holder.subtitle.setTextColor(
                 when {
                     blocked -> Color.parseColor("#C92A2A")
-                    limit != null -> Color.parseColor("#3B5BDB")
+                    rule != null -> Color.parseColor("#3B5BDB")
                     else -> Color.GRAY
                 }
             )
@@ -499,6 +641,10 @@ class MainActivity : Activity() {
 
     companion object {
         private const val REQ_NOTIFICATIONS = 1
+        private val PRESET_MINUTES = listOf(5, 10, 15, 30, 45, 60)
+
+        fun formatTime(minuteOfDay: Int): String =
+            String.format(java.util.Locale.ROOT, "%02d:%02d", minuteOfDay / 60, minuteOfDay % 60)
 
         fun formatDateTime(millis: Long): String =
             java.text.SimpleDateFormat("d.MM.yyyy 'о' HH:mm", java.util.Locale.getDefault())

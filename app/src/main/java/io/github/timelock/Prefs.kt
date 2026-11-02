@@ -3,67 +3,194 @@ package io.github.timelock
 import android.content.Context
 import android.os.SystemClock
 import android.provider.Settings
+import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.LocalTime
 
 /**
- * Налаштування лімітів.
+ * Правило для одного додатка. null у числовому полі означає «без обмеження».
  *
- * Головне правило: посилити обмеження можна одразу, а послабити
- * (збільшити ліміт, прибрати додаток) — лише з наступного дня.
+ * @param weekday хвилин на день у будні
+ * @param weekend хвилин на день у суботу й неділю; null — як у будні
+ * @param opens скільки разів на день можна відкрити
+ * @param night блокувати в нічний режим
+ */
+data class Rule(
+    val weekday: Int? = null,
+    val weekend: Int? = null,
+    val opens: Int? = null,
+    val night: Boolean = false
+) {
+    val isEmpty: Boolean
+        get() = weekday == null && weekend == null && opens == null && !night
+
+    /** Ліміт у вихідні з урахуванням «як у будні». */
+    val effectiveWeekend: Int?
+        get() = weekend ?: weekday
+
+    fun minutesFor(date: LocalDate): Int? {
+        val isWeekend = date.dayOfWeek == DayOfWeek.SATURDAY || date.dayOfWeek == DayOfWeek.SUNDAY
+        return if (isWeekend) effectiveWeekend else weekday
+    }
+
+    /** Прибирає дублювання: якщо вихідні = будні, зберігаємо лише будні. */
+    fun normalized(): Rule {
+        val wd = weekday?.takeIf { it > 0 }
+        val we = weekend?.takeIf { it > 0 }
+        return copy(
+            weekday = wd,
+            weekend = if (we == wd) null else we,
+            opens = opens?.takeIf { it > 0 }
+        )
+    }
+
+    companion object {
+        val EMPTY = Rule()
+
+        private fun stricter(a: Int?, b: Int?): Int? =
+            if (a == null) b else if (b == null) a else minOf(a, b)
+
+        /** Найсуворіше з двох правил — кожне поле окремо. */
+        fun strictest(a: Rule, b: Rule): Rule = Rule(
+            weekday = stricter(a.weekday, b.weekday),
+            weekend = stricter(a.effectiveWeekend, b.effectiveWeekend),
+            opens = stricter(a.opens, b.opens),
+            night = a.night || b.night
+        ).normalized()
+    }
+}
+
+/** Нічне вікно у хвилинах від опівночі; може переходити через північ (23:00–07:00). */
+data class NightWindow(val start: Int, val end: Int) {
+
+    fun covers(minuteOfDay: Int): Boolean = when {
+        start == end -> false
+        start < end -> minuteOfDay in start until end
+        else -> minuteOfDay >= start || minuteOfDay < end
+    }
+
+    fun coversNow(): Boolean {
+        val t = LocalTime.now()
+        return covers(t.hour * 60 + t.minute)
+    }
+
+    /** Чи покриває це вікно всі хвилини вікна [other] (тобто не м'якше за нього). */
+    fun contains(other: NightWindow): Boolean =
+        (0 until 24 * 60).all { !other.covers(it) || covers(it) }
+
+    companion object {
+        val DEFAULT = NightWindow(23 * 60, 7 * 60)
+    }
+}
+
+/**
+ * Збереження налаштувань.
+ *
+ * Головне правило: посилити обмеження можна одразу, а послабити — лише з
+ * наступного дня. Якщо зміна частково суворіша, частково м'якша, суворіша
+ * частина діє одразу, а повне нове правило — з завтра.
  * Захист від видалення знімається лише через 72 години після запиту.
- * Так у момент спокуси не вийде просто зайти й зняти блок.
  */
 class Prefs(context: Context) {
 
-    enum class Result { APPLIED, TOMORROW, UNCHANGED }
+    enum class Result { APPLIED, PARTLY, TOMORROW, UNCHANGED }
 
     private val appContext = context.applicationContext
     private val sp = appContext.getSharedPreferences("timelock", Context.MODE_PRIVATE)
 
     private fun today(): Long = LocalDate.now().toEpochDay()
 
-    /** Активні ліміти: пакет -> хвилин на день. */
-    fun activeLimits(): Map<String, Int> {
+    // ---------- Правила додатків ----------
+
+    fun rules(): Map<String, Rule> {
         applyPendingIfDue()
-        return decode(sp.getString(KEY_ACTIVE, null))
+        return decodeRules(sp.getString(KEY_RULES, null))
     }
 
-    /** Відкладені послаблення: пакет -> нові хвилини (0 = прибрати ліміт). */
-    fun pendingLimits(): Map<String, Int> {
+    fun pendingRules(): Map<String, Rule> {
         applyPendingIfDue()
-        return decode(sp.getString(KEY_PENDING, null))
+        return decodeRules(sp.getString(KEY_RULES_PENDING, null))
     }
 
     @Synchronized
-    fun setLimit(pkg: String, minutes: Int): Result {
+    fun setRule(pkg: String, requested: Rule): Result {
         applyPendingIfDue()
-        val active = decode(sp.getString(KEY_ACTIVE, null))
-        val pending = decode(sp.getString(KEY_PENDING, null))
-        val current = active[pkg]
-        val newMin = minutes.coerceIn(0, MAX_MINUTES)
+        val active = decodeRules(sp.getString(KEY_RULES, null))
+        val pending = decodeRules(sp.getString(KEY_RULES_PENDING, null))
+        val current = active[pkg] ?: Rule.EMPTY
+        val wanted = requested.normalized()
 
-        val tighter = newMin > 0 && (current == null || newMin < current)
-        val looser = current != null && (newMin == 0 || newMin > current)
+        if (wanted == current) {
+            // Повернулися до чинного правила — скасовуємо відкладені зміни.
+            if (pending.remove(pkg) != null) saveRules(active, pending, schedule = false)
+            return Result.UNCHANGED
+        }
 
-        return when {
-            tighter -> {
-                active[pkg] = newMin
-                pending.remove(pkg)
-                save(active, pending, schedule = false)
-                Result.APPLIED
-            }
-            looser -> {
-                pending[pkg] = newMin
-                save(active, pending, schedule = true)
-                Result.TOMORROW
-            }
-            else -> {
-                // Той самий ліміт — скасовуємо відкладене послаблення, якщо воно було.
-                if (pending.remove(pkg) != null) save(active, pending, schedule = false)
-                Result.UNCHANGED
-            }
+        val now = Rule.strictest(current, wanted)
+        if (now.isEmpty) active.remove(pkg) else active[pkg] = now
+
+        return if (now == wanted) {
+            pending.remove(pkg)
+            saveRules(active, pending, schedule = false)
+            Result.APPLIED
+        } else {
+            pending[pkg] = wanted
+            saveRules(active, pending, schedule = true)
+            if (now == current) Result.TOMORROW else Result.PARTLY
         }
     }
+
+    private fun saveRules(active: Map<String, Rule>, pending: Map<String, Rule>, schedule: Boolean) {
+        val e = sp.edit()
+            .putString(KEY_RULES, encodeRules(active))
+            .putString(KEY_RULES_PENDING, encodeRules(pending))
+        if (schedule) e.putLong(KEY_PENDING_DAY, today() + 1)
+        e.apply()
+    }
+
+    // ---------- Нічний режим ----------
+
+    fun nightWindow(): NightWindow {
+        applyPendingIfDue()
+        return NightWindow(
+            sp.getInt(KEY_NIGHT_START, NightWindow.DEFAULT.start),
+            sp.getInt(KEY_NIGHT_END, NightWindow.DEFAULT.end)
+        )
+    }
+
+    fun pendingNightWindow(): NightWindow? {
+        applyPendingIfDue()
+        val s = sp.getInt(KEY_NIGHT_PENDING_START, -1)
+        val e = sp.getInt(KEY_NIGHT_PENDING_END, -1)
+        return if (s >= 0 && e >= 0) NightWindow(s, e) else null
+    }
+
+    /** Ширше вікно — одразу; вужче чи зсунуте — з завтра. */
+    @Synchronized
+    fun setNightWindow(window: NightWindow): Result {
+        val current = nightWindow()
+        if (window == current) {
+            sp.edit().remove(KEY_NIGHT_PENDING_START).remove(KEY_NIGHT_PENDING_END).apply()
+            return Result.UNCHANGED
+        }
+        if (window.contains(current)) {
+            sp.edit()
+                .putInt(KEY_NIGHT_START, window.start)
+                .putInt(KEY_NIGHT_END, window.end)
+                .remove(KEY_NIGHT_PENDING_START)
+                .remove(KEY_NIGHT_PENDING_END)
+                .apply()
+            return Result.APPLIED
+        }
+        sp.edit()
+            .putInt(KEY_NIGHT_PENDING_START, window.start)
+            .putInt(KEY_NIGHT_PENDING_END, window.end)
+            .putLong(KEY_PENDING_DAY, today() + 1)
+            .apply()
+        return Result.TOMORROW
+    }
+
+    // ---------- Захист від видалення ----------
 
     fun protectionEnabled(): Boolean {
         applyPendingIfDue()
@@ -150,57 +277,90 @@ class Prefs(context: Context) {
             -1
         }
 
-    private fun save(active: Map<String, Int>, pending: Map<String, Int>, schedule: Boolean) {
-        val e = sp.edit()
-            .putString(KEY_ACTIVE, encode(active))
-            .putString(KEY_PENDING, encode(pending))
-        if (schedule) e.putLong(KEY_PENDING_DAY, today() + 1)
-        e.apply()
-    }
+    // ---------- Застосування відкладених змін ----------
 
     @Synchronized
     private fun applyPendingIfDue() {
         tickProtectionCountdown()
+        migrateOldLimits()
 
         val day = sp.getLong(KEY_PENDING_DAY, Long.MAX_VALUE)
         if (today() < day) return
 
-        val active = decode(sp.getString(KEY_ACTIVE, null))
-        val pending = decode(sp.getString(KEY_PENDING, null))
-        for ((pkg, min) in pending) {
-            if (min <= 0) active.remove(pkg) else active[pkg] = min
+        val active = decodeRules(sp.getString(KEY_RULES, null))
+        val pending = decodeRules(sp.getString(KEY_RULES_PENDING, null))
+        for ((pkg, rule) in pending) {
+            if (rule.isEmpty) active.remove(pkg) else active[pkg] = rule
+        }
+        val e = sp.edit()
+            .putString(KEY_RULES, encodeRules(active))
+            .remove(KEY_RULES_PENDING)
+            .remove(KEY_PENDING_DAY)
+        val ns = sp.getInt(KEY_NIGHT_PENDING_START, -1)
+        val ne = sp.getInt(KEY_NIGHT_PENDING_END, -1)
+        if (ns >= 0 && ne >= 0) {
+            e.putInt(KEY_NIGHT_START, ns).putInt(KEY_NIGHT_END, ne)
+        }
+        e.remove(KEY_NIGHT_PENDING_START).remove(KEY_NIGHT_PENDING_END)
+        e.apply()
+    }
+
+    /** Версії до 1.1 зберігали лише «пакет=хвилини». */
+    private fun migrateOldLimits() {
+        val old = sp.getString(KEY_OLD_ACTIVE, null) ?: return
+        val rules = decodeRules(sp.getString(KEY_RULES, null))
+        for (part in old.split(";")) {
+            val i = part.lastIndexOf('=')
+            if (i <= 0) continue
+            val minutes = part.substring(i + 1).toIntOrNull() ?: continue
+            val pkg = part.substring(0, i)
+            if (minutes > 0 && pkg !in rules) rules[pkg] = Rule(weekday = minutes)
         }
         sp.edit()
-            .putString(KEY_ACTIVE, encode(active))
-            .remove(KEY_PENDING)
-            .remove(KEY_PENDING_DAY)
+            .putString(KEY_RULES, encodeRules(rules))
+            .remove(KEY_OLD_ACTIVE)
+            .remove(KEY_OLD_PENDING)
             .apply()
     }
 
-    private fun decode(s: String?): MutableMap<String, Int> {
-        val map = mutableMapOf<String, Int>()
+    // ---------- Формат зберігання: "пакет=будні,вихідні,відкриття,ніч;..." ----------
+
+    private fun decodeRules(s: String?): MutableMap<String, Rule> {
+        val map = mutableMapOf<String, Rule>()
         if (s.isNullOrEmpty()) return map
         for (part in s.split(";")) {
             val i = part.lastIndexOf('=')
             if (i <= 0) continue
-            val value = part.substring(i + 1).toIntOrNull() ?: continue
-            map[part.substring(0, i)] = value
+            val f = part.substring(i + 1).split(",")
+            if (f.size < 4) continue
+            map[part.substring(0, i)] = Rule(num(f[0]), num(f[1]), num(f[2]), f[3] == "1")
         }
         return map
     }
 
-    private fun encode(map: Map<String, Int>): String =
-        map.entries.joinToString(";") { "${it.key}=${it.value}" }
+    private fun num(x: String): Int? = x.toIntOrNull()?.takeIf { it > 0 }
+
+    private fun encodeRules(map: Map<String, Rule>): String =
+        map.entries.joinToString(";") { (pkg, r) ->
+            "$pkg=${r.weekday ?: -1},${r.weekend ?: -1},${r.opens ?: -1},${if (r.night) 1 else 0}"
+        }
 
     companion object {
         const val MAX_MINUTES = 24 * 60
-        private const val KEY_ACTIVE = "active_limits"
-        private const val KEY_PENDING = "pending_limits"
+        const val PROTECTION_OFF_DELAY_MS = 72L * 60 * 60 * 1000
+
+        private const val KEY_RULES = "rules"
+        private const val KEY_RULES_PENDING = "rules_pending"
         private const val KEY_PENDING_DAY = "pending_day"
+        private const val KEY_NIGHT_START = "night_start"
+        private const val KEY_NIGHT_END = "night_end"
+        private const val KEY_NIGHT_PENDING_START = "night_pending_start"
+        private const val KEY_NIGHT_PENDING_END = "night_pending_end"
         private const val KEY_PROTECTION = "protection"
         private const val KEY_OFF_REMAINING = "protection_off_remaining"
         private const val KEY_OFF_LAST_ELAPSED = "protection_off_last_elapsed"
         private const val KEY_OFF_LAST_BOOT = "protection_off_last_boot"
-        const val PROTECTION_OFF_DELAY_MS = 72L * 60 * 60 * 1000
+        private const val KEY_OLD_ACTIVE = "active_limits"
+        private const val KEY_OLD_PENDING = "pending_limits"
     }
 }

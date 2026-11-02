@@ -36,6 +36,10 @@
         </activity>
 
         <activity
+            android:name=".StatsActivity"
+            android:exported="false" />
+
+        <activity
             android:name=".BlockActivity"
             android:excludeFromRecents="true"
             android:exported="false"
