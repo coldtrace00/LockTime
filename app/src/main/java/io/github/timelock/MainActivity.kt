@@ -529,9 +529,9 @@ class MainActivity : Activity() {
         val shown = prefs.pendingRules()[app.pkg] ?: current ?: Rule()
         val minutesLabel: (Int) -> String = { formatMinutes(this, it) }
 
-        val weekdayInput = numberField(shown.weekday, getString(R.string.hint_no_limit))
+        val weekdayInput = numberField(shown.weekday, getString(R.string.hint_type_number))
         val weekendInput = numberField(shown.weekend, getString(R.string.hint_same_as_weekdays))
-        val opensInput = numberField(shown.opens, getString(R.string.hint_no_limit))
+        val opensInput = numberField(shown.opens, getString(R.string.hint_type_number))
         val nightBox = CheckBox(this).apply {
             val w = prefs.nightWindow()
             text = getString(R.string.night_checkbox, formatTime(w.start), formatTime(w.end))
@@ -544,6 +544,7 @@ class MainActivity : Activity() {
             setPadding(dp(24), 0, dp(24), dp(8))
 
             addView(dialogSection(getString(R.string.dlg_time)))
+            addView(mutedText(12f).apply { text = getString(R.string.dlg_time_hint) })
             addView(fieldLabel(getString(R.string.dlg_weekdays)))
             addView(weekdayInput)
             addView(chipRow(weekdayInput, PRESET_MINUTES, minutesLabel))
@@ -552,6 +553,7 @@ class MainActivity : Activity() {
             addView(chipRow(weekendInput, PRESET_MINUTES, minutesLabel))
 
             addView(dialogSection(getString(R.string.dlg_opens)))
+            addView(mutedText(12f).apply { text = getString(R.string.dlg_opens_hint) })
             addView(opensInput)
             addView(chipRow(opensInput, PRESET_OPENS) { it.toString() })
 

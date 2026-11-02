@@ -100,10 +100,17 @@
     <string name="night_hint">Торкніться часу, щоб змінити. Ширше вікно діє одразу, вужче — з завтра.</string>
     <string name="night_apps_none">Поки жоден додаток не позначено «вночі» — увімкніть це у вікні додатка.</string>
     <string name="night_apps_count">Додатків з позначкою «вночі»: %d</string>
-    <string name="dlg_time">Час на день</string>
+    <string name="dlg_time">Скільки хвилин на день</string>
     <string name="dlg_weekdays">Будні</string>
     <string name="dlg_weekends">Вихідні (сб, нд)</string>
-    <string name="dlg_opens">Відкриттів на день</string>
+    <string name="dlg_opens">Скільки разів на день можна відкрити</string>
     <string name="dlg_minutes_hint">хвилин</string>
     <string name="btn_remove_limits">Прибрати всі обмеження</string>
+    <string name="dlg_time_hint">Тільки для цього додатка. Введіть будь-яке число або виберіть нижче.</string>
+    <string name="dlg_opens_hint">Тільки для цього додатка, а не для всіх разом. Введіть будь-яке число або виберіть нижче.</string>
+    <string name="hint_type_number">без обмеження — введіть число</string>
+    <string name="warn_opens_left_title">Залишилось %d відкриття на сьогодні</string>
+    <string name="warn_opens_left_text">Ліміт відкриттів «%s» майже вичерпано</string>
+    <string name="warn_last_open_title">Це останнє відкриття на сьогодні</string>
+    <string name="warn_last_open_text">Наступне відкриття «%s» буде заблоковано до опівночі</string>
 </resources>

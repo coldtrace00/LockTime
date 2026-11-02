@@ -24,7 +24,7 @@ class LimitService : AccessibilityService() {
 
     enum class Reason { TIME, OPENS, NIGHT }
 
-    private data class Verdict(val reason: Reason?, val remainingMs: Long?)
+    private data class Verdict(val reason: Reason?, val remainingMs: Long?, val opens: Int = 0)
 
     private val handler = Handler(Looper.getMainLooper())
     private val prefs by lazy { Prefs(this) }
@@ -35,6 +35,9 @@ class LimitService : AccessibilityService() {
 
     /** "пакет@день" -> найменший поріг (хв), про який уже попередили. */
     private val warned = HashMap<String, Int>()
+
+    /** Попередження про відкриття, які вже показали: "пакет@день@залишок". */
+    private val warnedOpens = HashSet<String>()
 
     private val tick = object : Runnable {
         override fun run() {
@@ -102,13 +105,14 @@ class LimitService : AccessibilityService() {
             ?: AppUsage()
         if (maxOpens != null) {
             val over = if (foreground) usage.opens > maxOpens else usage.opens >= maxOpens
-            if (over) return Verdict(Reason.OPENS, null)
+            if (over) return Verdict(Reason.OPENS, null, usage.opens)
         }
         if (limitMin != null) {
             val remainingMs = limitMin * 60_000L - usage.timeMs
-            return if (remainingMs <= 0L) Verdict(Reason.TIME, null) else Verdict(null, remainingMs)
+            return if (remainingMs <= 0L) Verdict(Reason.TIME, null, usage.opens)
+            else Verdict(null, remainingMs, usage.opens)
         }
-        return Verdict(null, null)
+        return Verdict(null, null, usage.opens)
     }
 
     private fun checkForeground(pkg: String?) {
@@ -120,6 +124,7 @@ class LimitService : AccessibilityService() {
             block(pkg, reason, viaBrowser = false)
             return
         }
+        rule.opens?.let { maybeWarnOpens(pkg, it, verdict.opens) }
         val remaining = verdict.remainingMs ?: return
         val limitMin = rule.minutesFor(LocalDate.now()) ?: return
         maybeWarn(pkg, limitMin, remaining)
@@ -212,16 +217,46 @@ class LimitService : AccessibilityService() {
         showWarning(pkg, remainingMs)
     }
 
-    private fun showWarning(pkg: String, remainingMs: Long) {
-        val minutes = ((remainingMs + 59_999L) / 60_000L).toInt()
-        val label = try {
+    /**
+     * Попередження про відкриття: коли лишилось 2 і коли це останнє дозволене.
+     * [opens] уже включає поточне відкриття.
+     */
+    private fun maybeWarnOpens(pkg: String, maxOpens: Int, opens: Int) {
+        val left = maxOpens - opens
+        val key = pkg + "@" + LocalDate.now().toEpochDay() + "@" + left
+        val label = labelOf(pkg)
+        when {
+            left == 0 && warnedOpens.add(key) -> notify(
+                pkg.hashCode() + 1,
+                loc().getString(R.string.warn_last_open_title),
+                loc().getString(R.string.warn_last_open_text, label)
+            )
+            left == 2 && maxOpens >= 4 && warnedOpens.add(key) -> notify(
+                pkg.hashCode() + 1,
+                loc().getString(R.string.warn_opens_left_title, left),
+                loc().getString(R.string.warn_opens_left_text, label)
+            )
+        }
+    }
+
+    private fun labelOf(pkg: String): String =
+        try {
             @Suppress("DEPRECATION")
             packageManager.getApplicationLabel(packageManager.getApplicationInfo(pkg, 0)).toString()
         } catch (e: Exception) {
             pkg
         }
-        val title = loc().getString(R.string.warn_title, minutes)
-        val text = loc().getString(R.string.warn_text, label)
+
+    private fun showWarning(pkg: String, remainingMs: Long) {
+        val minutes = ((remainingMs + 59_999L) / 60_000L).toInt()
+        notify(
+            pkg.hashCode(),
+            loc().getString(R.string.warn_title, minutes),
+            loc().getString(R.string.warn_text, labelOf(pkg))
+        )
+    }
+
+    private fun notify(id: Int, title: String, text: String) {
 
         val nm = getSystemService(NotificationManager::class.java)
         if (nm == null || !nm.areNotificationsEnabled()) {
@@ -239,7 +274,7 @@ class LimitService : AccessibilityService() {
             .setTimeoutAfter(2 * 60_000L)
             .build()
         try {
-            nm.notify(pkg.hashCode(), notification)
+            nm.notify(id, notification)
         } catch (e: SecurityException) {
             Toast.makeText(this, "$title — $text", Toast.LENGTH_LONG).show()
         }

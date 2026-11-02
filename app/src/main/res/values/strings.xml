@@ -101,10 +101,17 @@
     <string name="night_hint">Tap a time to change it. A wider window applies right away, a narrower one from tomorrow.</string>
     <string name="night_apps_none">No app is marked “at night” yet — turn it on in an app’s settings.</string>
     <string name="night_apps_count">Apps marked “at night”: %d</string>
-    <string name="dlg_time">Time per day</string>
+    <string name="dlg_time">How many minutes a day</string>
     <string name="dlg_weekdays">Weekdays</string>
     <string name="dlg_weekends">Weekends (Sat, Sun)</string>
-    <string name="dlg_opens">Opens per day</string>
+    <string name="dlg_opens">How many times a day it can be opened</string>
     <string name="dlg_minutes_hint">minutes</string>
     <string name="btn_remove_limits">Remove all limits</string>
+    <string name="dlg_time_hint">Only for this app. Type any number or pick below.</string>
+    <string name="dlg_opens_hint">Only for this app, not all apps together. Type any number or pick below.</string>
+    <string name="hint_type_number">no limit — type a number</string>
+    <string name="warn_opens_left_title">%d opens left today</string>
+    <string name="warn_opens_left_text">The open limit for “%s” is almost used up</string>
+    <string name="warn_last_open_title">Last open for today</string>
+    <string name="warn_last_open_text">The next open of “%s” will be blocked until midnight</string>
 </resources>
