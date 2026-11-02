@@ -13,8 +13,8 @@
     <string name="btn_change_time">Change time</string>
     <string name="section_stats">Statistics</string>
     <string name="btn_weekly_stats">Weekly statistics</string>
-    <string name="section_apps">Apps</string>
-    <string name="apps_hint">Tap an app to set limits. You can tighten them right away; loosening or removing takes effect the next day.</string>
+    <string name="section_apps">Apps with limits</string>
+    <string name="apps_hint">Tap an app to change its limits. You can tighten them right away; loosening or removing takes effect the next day.</string>
     <string name="loading_apps">Loading apps…</string>
     <string name="perm_usage">Usage access</string>
     <string name="perm_a11y">Accessibility service</string>
@@ -135,4 +135,18 @@
     <string name="widget_opens_left">%d opens left</string>
     <string name="widget_no_limit">no daytime limit</string>
     <string name="widget_description">Time and opens left today</string>
+    <string name="apps_empty">No apps yet.\nTap “Choose apps” to add Instagram, TikTok or any other.</string>
+    <string name="btn_pick_apps">+ Choose apps</string>
+    <string name="picker_title">Choose an app</string>
+    <string name="picker_search">Search apps</string>
+    <string name="picker_has_limit">Already has a limit — tap to change</string>
+    <string name="btn_continue">Continue</string>
+    <string name="usage_title">Usage access</string>
+    <string name="usage_message">Android will now open a system page — it uses the phone’s language, not LockTime’s.\n\nFind LockTime in the list and turn the switch on (it may be called “Permit usage access” or “Allow usage tracking”).</string>
+    <string name="battery_title">Battery optimization</string>
+    <string name="battery_message">Android will now show a system window — it uses the phone’s language, not LockTime’s.\n\nTap “Allow” so the system doesn’t stop LockTime in the background. Otherwise blocking may stop working after a while.</string>
+    <string name="update_title">Updates</string>
+    <string name="update_version">Installed version: %s</string>
+    <string name="update_button">Open latest version</string>
+    <string name="update_hint">LockTime has no internet access, so updates open in the browser. Newer version there — download and install it over this one, your settings stay.</string>
 </resources>

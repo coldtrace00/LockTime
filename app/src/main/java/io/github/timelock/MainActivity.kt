@@ -41,8 +41,6 @@ import java.time.LocalDate
 
 class MainActivity : Activity() {
 
-    data class AppItem(val pkg: String, val label: String, val icon: Drawable)
-
     private lateinit var prefs: Prefs
     private lateinit var listView: ListView
     private lateinit var adapter: AppAdapter
@@ -60,12 +58,16 @@ class MainActivity : Activity() {
     private lateinit var protectionSwitch: Switch
     private lateinit var protectionNote: TextView
     private lateinit var loadingText: TextView
+    private lateinit var emptyText: TextView
     private lateinit var nightFromButton: TextView
     private lateinit var nightToButton: TextView
     private lateinit var nightText: TextView
     private lateinit var summarySwitch: Switch
     private lateinit var summaryTimeButton: TextView
 
+    private var allApps: List<AppItem> = emptyList()
+    private var appsLoaded = false
+    /** На головному екрані — лише додатки з лімітами. */
     private var apps: List<AppItem> = emptyList()
     private var usage: Map<String, AppUsage> = emptyMap()
 
@@ -209,15 +211,46 @@ class MainActivity : Activity() {
             setOnClickListener { startActivity(Intent(this@MainActivity, StatsActivity::class.java)) }
         }, cardParams())
 
-        // ---- Додатки ----
-        header.addView(TextView(this).apply {
-            text = getString(R.string.section_apps)
-            textSize = 18f
-            setTypeface(typeface, Typeface.BOLD)
-            setTextColor(Look.text(this@MainActivity))
+        // ---- Оновлення ----
+        header.addView(card().apply {
+            addView(cardTitle(getString(R.string.update_title)))
+            addView(mutedText(13f).apply { text = getString(R.string.update_version, appVersion()) })
+            addView(LinearLayout(this@MainActivity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                setPadding(0, dp(8), 0, 0)
+                addView(smallButton(getString(R.string.update_button)) { openReleases() })
+            })
+            addView(mutedText(12f).apply {
+                text = getString(R.string.update_hint)
+                setPadding(0, dp(8), 0, 0)
+            })
+        }, cardParams())
+
+        // ---- Додатки з лімітами ----
+        header.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
             setPadding(0, dp(20), 0, dp(4))
+            addView(TextView(this@MainActivity).apply {
+                text = getString(R.string.section_apps)
+                textSize = 18f
+                setTypeface(typeface, Typeface.BOLD)
+                setTextColor(Look.text(this@MainActivity))
+            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(smallButton(getString(R.string.btn_pick_apps)) {
+                @Suppress("DEPRECATION")
+                startActivityForResult(Intent(this@MainActivity, AppPickerActivity::class.java), REQ_PICK)
+            })
         })
         header.addView(mutedText(13f).apply { text = getString(R.string.apps_hint) })
+        emptyText = mutedText(14f).apply {
+            text = getString(R.string.apps_empty)
+            gravity = Gravity.CENTER
+            background = Look.rounded(Look.card(this@MainActivity), dpf(16))
+            setPadding(dp(20), dp(24), dp(20), dp(24))
+            visibility = View.GONE
+        }
+        header.addView(emptyText, cardParams())
         loadingText = TextView(this).apply {
             text = getString(R.string.loading_apps)
             setPadding(0, dp(12), 0, 0)
@@ -331,9 +364,23 @@ class MainActivity : Activity() {
         return enabled.split(':').any { ComponentName.unflattenFromString(it) == mine }
     }
 
+    /**
+     * Системні сторінки дозволів Android показує мовою телефона, а не мовою LockTime.
+     * Тому перед ними — коротке пояснення обраною мовою, що саме натиснути.
+     */
+    private fun explainThen(titleRes: Int, messageRes: Int, open: () -> Unit) {
+        AlertDialog.Builder(this)
+            .setTitle(titleRes)
+            .setMessage(messageRes)
+            .setPositiveButton(R.string.btn_continue) { _, _ -> open() }
+            .setNegativeButton(R.string.btn_cancel, null)
+            .show()
+    }
+
     private fun openUsageAccess() {
-        safeStart(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
-        Toast.makeText(this, getString(R.string.toast_find_in_list), Toast.LENGTH_LONG).show()
+        explainThen(R.string.usage_title, R.string.usage_message) {
+            safeStart(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
+        }
     }
 
     private fun showAccessibilityHelp() {
@@ -388,11 +435,25 @@ class MainActivity : Activity() {
     }
 
     private fun openBatterySettings() {
-        val direct = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
-            .setData(Uri.parse("package:$packageName"))
-        if (!safeStart(direct)) {
-            safeStart(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+        explainThen(R.string.battery_title, R.string.battery_message) {
+            val direct = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+                .setData(Uri.parse("package:$packageName"))
+            if (!safeStart(direct)) {
+                safeStart(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+            }
         }
+    }
+
+    private fun appVersion(): String =
+        try {
+            packageManager.getPackageInfo(packageName, 0).versionName ?: "?"
+        } catch (e: Exception) {
+            "?"
+        }
+
+    /** У LockTime немає доступу до інтернету, тож оновлення відкриваємо в браузері. */
+    private fun openReleases() {
+        safeStart(Intent(Intent.ACTION_VIEW, Uri.parse(RELEASES_URL)))
     }
 
     private fun onProtectionToggled(checked: Boolean) {
@@ -460,24 +521,10 @@ class MainActivity : Activity() {
 
     private fun loadApps() {
         Thread {
-            val pm = packageManager
-            val launcher = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-            @Suppress("DEPRECATION")
-            val packages = pm.queryIntentActivities(launcher, 0)
-                .map { it.activityInfo.packageName }
-                .distinct()
-                .filter { it != packageName }
-            val items = packages.mapNotNull { pkg ->
-                try {
-                    @Suppress("DEPRECATION")
-                    val info = pm.getApplicationInfo(pkg, 0)
-                    AppItem(pkg, pm.getApplicationLabel(info).toString(), pm.getApplicationIcon(info))
-                } catch (e: Exception) {
-                    null
-                }
-            }
+            val items = Apps.loadLaunchable(this)
             runOnUiThread {
-                apps = items
+                allApps = items
+                appsLoaded = true
                 loadingText.visibility = View.GONE
                 sortApps()
                 refreshUsage()
@@ -486,11 +533,21 @@ class MainActivity : Activity() {
         }.start()
     }
 
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        @Suppress("DEPRECATION")
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != REQ_PICK || resultCode != RESULT_OK) return
+        val pkg = data?.getStringExtra(AppPickerActivity.EXTRA_PACKAGE) ?: return
+        val app = allApps.firstOrNull { it.pkg == pkg } ?: return
+        showLimitDialog(app)
+    }
+
+    /** Головний список — лише додатки з чинними або запланованими лімітами. */
     private fun sortApps() {
         val limited = prefs.rules().keys + prefs.pendingRules().keys
-        apps = apps.sortedWith(
-            compareBy<AppItem>({ if (it.pkg in limited) 0 else 1 }, { it.label.lowercase() })
-        )
+        apps = allApps.filter { it.pkg in limited }.sortedBy { it.label.lowercase() }
+        emptyText.visibility = if (appsLoaded && apps.isEmpty()) View.VISIBLE else View.GONE
     }
 
     private fun refreshUsage() {
@@ -937,6 +994,8 @@ class MainActivity : Activity() {
 
     companion object {
         private const val REQ_NOTIFICATIONS = 1
+        private const val REQ_PICK = 2
+        private const val RELEASES_URL = "https://github.com/coldtrace00/LockTime/releases/latest"
         private val PRESET_MINUTES = listOf(5, 10, 15, 30, 45, 60)
         private val PRESET_OPENS = listOf(3, 5, 10, 20)
 

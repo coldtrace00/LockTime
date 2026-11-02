@@ -12,8 +12,8 @@
     <string name="btn_change_time">Змінити час</string>
     <string name="section_stats">Статистика</string>
     <string name="btn_weekly_stats">Статистика за тиждень</string>
-    <string name="section_apps">Додатки</string>
-    <string name="apps_hint">Торкніться додатка, щоб задати ліміти. Посилити можна одразу, а послабити чи прибрати — лише з наступного дня.</string>
+    <string name="section_apps">Додатки з лімітами</string>
+    <string name="apps_hint">Торкніться додатка, щоб змінити ліміти. Посилити можна одразу, а послабити чи прибрати — лише з наступного дня.</string>
     <string name="loading_apps">Завантажую список додатків…</string>
     <string name="perm_usage">Статистика використання</string>
     <string name="perm_a11y">Служба спеціальних можливостей</string>
@@ -134,4 +134,18 @@
     <string name="widget_opens_left">ще %d відкр.</string>
     <string name="widget_no_limit">без денного ліміту</string>
     <string name="widget_description">Скільки часу й відкриттів лишилось сьогодні</string>
+    <string name="apps_empty">Поки жодного додатка.\nНатисніть «Обрати додатки», щоб додати Instagram, TikTok чи будь-який інший.</string>
+    <string name="btn_pick_apps">+ Обрати додатки</string>
+    <string name="picker_title">Обрати додаток</string>
+    <string name="picker_search">Пошук додатків</string>
+    <string name="picker_has_limit">Ліміт уже є — торкніться, щоб змінити</string>
+    <string name="btn_continue">Продовжити</string>
+    <string name="usage_title">Статистика використання</string>
+    <string name="usage_message">Зараз Android відкриє системну сторінку — вона буде мовою телефона, а не мовою LockTime.\n\nЗнайдіть у списку LockTime і ввімкніть перемикач (англійською він може називатися «Permit usage access» або «Allow usage tracking»).</string>
+    <string name="battery_title">Оптимізація батареї</string>
+    <string name="battery_message">Зараз Android покаже системне вікно — воно буде мовою телефона, а не мовою LockTime.\n\nНатисніть «Allow» («Дозволити»), щоб система не зупиняла LockTime у фоні. Інакше блокування через якийсь час може перестати працювати.</string>
+    <string name="update_title">Оновлення</string>
+    <string name="update_version">Встановлена версія: %s</string>
+    <string name="update_button">Відкрити останню версію</string>
+    <string name="update_hint">LockTime не має доступу до інтернету, тому оновлення відкриваються в браузері. Якщо там новіша версія — завантажте й встановіть поверх цієї, налаштування збережуться.</string>
 </resources>
