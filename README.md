@@ -103,6 +103,7 @@ There is always an emergency exit — [safe mode](#honest-limitations).
 | [`UsageTracker.kt`](app/src/main/java/io/github/timelock/UsageTracker.kt) | Counts screen time and opens since midnight from system `UsageEvents`, plus 7-day totals for statistics. |
 | [`Prefs.kt`](app/src/main/java/io/github/timelock/Prefs.kt) | App rules (`Rule`), the night window (`NightWindow`), the "tighten now, loosen tomorrow" logic and the 72-hour protection countdown. |
 | [`MainActivity.kt`](app/src/main/java/io/github/timelock/MainActivity.kt) | Main screen with three tabs: Today (progress), Limits (rules, night mode), Settings. Also the rules dialog. |
+| [`RuleActivity.kt`](app/src/main/java/io/github/timelock/RuleActivity.kt) | Full-screen editor for one app's limits: time (every day / weekdays-weekends / per day), opens, night mode. |
 | [`AppPickerActivity.kt`](app/src/main/java/io/github/timelock/AppPickerActivity.kt) | Searchable list for choosing an app. |
 | [`Updater.kt`](app/src/main/java/io/github/timelock/Updater.kt) | The only network code: opt-in update check and download. |
 | [`StatsActivity.kt`](app/src/main/java/io/github/timelock/StatsActivity.kt) | Weekly statistics. |

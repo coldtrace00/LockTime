@@ -104,6 +104,7 @@
 | [`UsageTracker.kt`](app/src/main/java/io/github/timelock/UsageTracker.kt) | Рахує час на екрані й кількість відкриттів від опівночі за системними подіями `UsageEvents`, а також суму за 7 днів для статистики. |
 | [`Prefs.kt`](app/src/main/java/io/github/timelock/Prefs.kt) | Правила додатків (`Rule`), нічне вікно (`NightWindow`), правило «посилити — одразу, послабити — завтра» і 72-годинний відлік зняття захисту. |
 | [`MainActivity.kt`](app/src/main/java/io/github/timelock/MainActivity.kt) | Головний екран з трьома вкладками: Сьогодні (прогрес), Ліміти (правила, нічний режим), Налаштування. Також вікно правил. |
+| [`RuleActivity.kt`](app/src/main/java/io/github/timelock/RuleActivity.kt) | Повноекранне налаштування обмежень одного додатка: час (щодня / будні й вихідні / по днях), відкриття, нічний режим. |
 | [`AppPickerActivity.kt`](app/src/main/java/io/github/timelock/AppPickerActivity.kt) | Список з пошуком для вибору додатка. |
 | [`Updater.kt`](app/src/main/java/io/github/timelock/Updater.kt) | Єдиний мережевий код: перевірка й завантаження оновлень за згодою. |
 | [`StatsActivity.kt`](app/src/main/java/io/github/timelock/StatsActivity.kt) | Статистика за тиждень. |
