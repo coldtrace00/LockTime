@@ -1,7 +1,7 @@
 # LockTime
 
 **A simple, reliable and fully open-source app time limiter for Android.**
-The interface is in English and Ukrainian (follows the phone's language).
+The interface is in Ukrainian by default; English can be selected in the app.
 
 Pick apps (Instagram, TikTok, YouTube…), set a daily limit — say, 1 hour — and
 once it's used up, the app simply won't open until midnight.
@@ -97,6 +97,7 @@ There is always an emergency exit — [safe mode](#honest-limitations).
 | [`MainActivity.kt`](app/src/main/java/io/github/timelock/MainActivity.kt) | Main screen: permissions, protection, night mode, app list and the rules dialog. |
 | [`StatsActivity.kt`](app/src/main/java/io/github/timelock/StatsActivity.kt) | Weekly statistics. |
 | [`BlockActivity.kt`](app/src/main/java/io/github/timelock/BlockActivity.kt) | Block screen with the reason (time, opens, night). |
+| [`Lang.kt`](app/src/main/java/io/github/timelock/Lang.kt) | Interface language: Ukrainian by default, switchable to English. |
 | [`res/values*/strings.xml`](app/src/main/res/) | UI texts: `values` — English, `values-uk` — Ukrainian. |
 | [`AndroidManifest.xml`](app/src/main/AndroidManifest.xml) | The full list of permissions — you can verify there's no internet access. |
 
@@ -126,8 +127,9 @@ There is always an emergency exit — [safe mode](#honest-limitations).
   presses "Back" and "Home". So the uninstall, force-stop and service-disable
   pages can't be opened. Side effect: the general app list may also close while
   the LockTime row is visible in it.
-- **Languages.** All texts live in string resources. Android picks Ukrainian if
-  the phone's language is Ukrainian, and English otherwise.
+- **Languages.** All texts live in string resources. Ukrainian is the default
+  regardless of the phone's language; the "Мова / Language" switch at the top
+  of the main screen changes it (`Lang.kt`).
 
 ## Honest limitations
 

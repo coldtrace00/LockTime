@@ -62,6 +62,11 @@ class MainActivity : Activity() {
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(Lang.wrap(newBase))
+    }
+
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         prefs = Prefs(this)
@@ -70,6 +75,25 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), dp(12), dp(16), dp(8))
         }
+
+        // Мова: назва розділу двомовна, щоб її було легко знайти будь-якою мовою.
+        header.addView(sectionTitle("Мова / Language"))
+        header.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            val current = Lang.get(this@MainActivity)
+            for ((code, name) in listOf(Lang.UK to "Українська", Lang.EN to "English")) {
+                addView(Button(this@MainActivity).apply {
+                    text = if (code == current) "✓ $name" else name
+                    setAllCaps(false)
+                    setOnClickListener {
+                        if (code != Lang.get(this@MainActivity)) {
+                            Lang.set(this@MainActivity, code)
+                            recreate()
+                        }
+                    }
+                })
+            }
+        })
 
         header.addView(sectionTitle(getString(R.string.section_permissions)))
 

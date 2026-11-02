@@ -1,7 +1,7 @@
 # LockTime
 
 **Простий, надійний і повністю відкритий блокувальник часу в додатках для Android.**
-Інтерфейс — українською та англійською (за мовою телефона).
+Інтерфейс — українською за замовчуванням, англійську можна обрати в додатку.
 
 Обираєте додатки (Instagram, TikTok, YouTube…), ставите денний ліміт — наприклад,
 1 година — і коли час вийшов, додаток просто не відкривається до опівночі.
@@ -97,6 +97,7 @@
 | [`MainActivity.kt`](app/src/main/java/io/github/timelock/MainActivity.kt) | Головний екран: дозволи, захист, нічний режим, список додатків і діалог правил. |
 | [`StatsActivity.kt`](app/src/main/java/io/github/timelock/StatsActivity.kt) | Статистика за тиждень. |
 | [`BlockActivity.kt`](app/src/main/java/io/github/timelock/BlockActivity.kt) | Екран блокування з причиною (час, відкриття, ніч). |
+| [`Lang.kt`](app/src/main/java/io/github/timelock/Lang.kt) | Мова інтерфейсу: українська за замовчуванням, можна перемкнути на англійську. |
 | [`res/values*/strings.xml`](app/src/main/res/) | Тексти інтерфейсу: `values` — англійська, `values-uk` — українська. |
 | [`AndroidManifest.xml`](app/src/main/AndroidManifest.xml) | Повний список дозволів — можна переконатися, що інтернету немає. |
 

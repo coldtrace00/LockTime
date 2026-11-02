@@ -1,6 +1,7 @@
 package io.github.timelock
 
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
@@ -15,6 +16,11 @@ import android.widget.TextView
 
 /** Скільки часу пішло в кожен додаток за останні 7 днів. */
 class StatsActivity : Activity() {
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(Lang.wrap(newBase))
+    }
+
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 

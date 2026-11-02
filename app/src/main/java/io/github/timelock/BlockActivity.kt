@@ -1,6 +1,7 @@
 package io.github.timelock
 
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
@@ -11,6 +12,11 @@ import android.widget.TextView
 
 /** Екран «Час вийшов». Пароля немає — лише кнопка на головний екран. */
 class BlockActivity : Activity() {
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(Lang.wrap(newBase))
+    }
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

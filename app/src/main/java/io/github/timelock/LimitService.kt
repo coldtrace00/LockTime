@@ -4,6 +4,7 @@ import android.accessibilityservice.AccessibilityService
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.content.Context
 import android.content.Intent
 import android.os.Handler
 import android.os.Looper
@@ -73,6 +74,9 @@ class LimitService : AccessibilityService() {
             }
         }
     }
+
+    /** Контекст з обраною в додатку мовою (змінюється без перезапуску служби). */
+    private fun loc(): Context = Lang.wrap(this)
 
     private fun currentPackage(): String? =
         try {
@@ -216,8 +220,8 @@ class LimitService : AccessibilityService() {
         } catch (e: Exception) {
             pkg
         }
-        val title = getString(R.string.warn_title, minutes)
-        val text = getString(R.string.warn_text, label)
+        val title = loc().getString(R.string.warn_title, minutes)
+        val text = loc().getString(R.string.warn_text, label)
 
         val nm = getSystemService(NotificationManager::class.java)
         if (nm == null || !nm.areNotificationsEnabled()) {
@@ -225,7 +229,7 @@ class LimitService : AccessibilityService() {
             return
         }
         nm.createNotificationChannel(
-            NotificationChannel(CHANNEL_ID, getString(R.string.warn_channel), NotificationManager.IMPORTANCE_HIGH)
+            NotificationChannel(CHANNEL_ID, loc().getString(R.string.warn_channel), NotificationManager.IMPORTANCE_HIGH)
         )
         val notification = Notification.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
@@ -260,7 +264,7 @@ class LimitService : AccessibilityService() {
         } catch (e: Exception) {
             null
         } ?: return
-        val hits = root.findAccessibilityNodeInfosByText(getString(R.string.app_name))
+        val hits = root.findAccessibilityNodeInfosByText(loc().getString(R.string.app_name))
         if (hits.isNullOrEmpty()) return
 
         performGlobalAction(GLOBAL_ACTION_BACK)
@@ -269,7 +273,7 @@ class LimitService : AccessibilityService() {
             lastBlockAt = now
             Toast.makeText(
                 this,
-                getString(R.string.guard_toast),
+                loc().getString(R.string.guard_toast),
                 Toast.LENGTH_LONG
             ).show()
         }
