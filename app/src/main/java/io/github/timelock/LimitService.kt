@@ -6,9 +6,13 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
+import android.graphics.PixelFormat
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import android.view.ContextThemeWrapper
+import android.view.View
+import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.widget.Toast
 import java.time.LocalDate
@@ -58,6 +62,7 @@ class LimitService : AccessibilityService() {
     }
 
     override fun onDestroy() {
+        hideOverlay()
         handler.removeCallbacks(tick)
         super.onDestroy()
     }
@@ -70,6 +75,7 @@ class LimitService : AccessibilityService() {
         if (pkg == packageName) return
         when (event.eventType) {
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
+                maybeHideOverlayFor(pkg)
                 checkForeground(pkg)
                 checkBrowser(pkg, force = true)
                 checkGuard(pkg, force = true)
@@ -138,16 +144,72 @@ class LimitService : AccessibilityService() {
         if (now - lastBlockAt < 1500) return
         lastBlockAt = now
         performGlobalAction(GLOBAL_ACTION_HOME)
-        val intent = Intent(this, BlockActivity::class.java)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-            .putExtra(BlockActivity.EXTRA_PACKAGE, pkg)
-            .putExtra(BlockActivity.EXTRA_REASON, reason.name)
-            .putExtra(BlockActivity.EXTRA_BROWSER, viaBrowser)
-        try {
-            startActivity(intent)
-        } catch (e: Exception) {
-            // Навіть якщо екран не відкрився, додаток уже закрито кнопкою «Додому».
+        if (!showOverlay(pkg, reason, viaBrowser)) {
+            // Запасний шлях: звичайний екран (на деяких телефонах система може його не пустити).
+            val intent = Intent(this, BlockActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                .putExtra(BlockActivity.EXTRA_PACKAGE, pkg)
+                .putExtra(BlockActivity.EXTRA_REASON, reason.name)
+                .putExtra(BlockActivity.EXTRA_BROWSER, viaBrowser)
+            try {
+                startActivity(intent)
+            } catch (e: Exception) {
+                // Додаток уже закрито кнопкою «Додому».
+            }
         }
+    }
+
+    // ---------- Накладка з повідомленням ----------
+
+    private var overlay: View? = null
+    private var overlayPkg: String? = null
+    private var overlayShownAt = 0L
+
+    /**
+     * Повідомлення про блок поверх екрана. Службам спеціальних можливостей це дозволено
+     * завжди (TYPE_ACCESSIBILITY_OVERLAY), на відміну від запуску екранів з фону,
+     * який Android 10+ і оболонки виробників часто блокують.
+     */
+    private fun showOverlay(pkg: String, reason: Reason, viaBrowser: Boolean): Boolean {
+        hideOverlay()
+        return try {
+            val ctx = ContextThemeWrapper(Lang.wrap(this), android.R.style.Theme_Material_NoActionBar)
+            val view = BlockView.build(ctx, pkg, reason.name, viaBrowser) { hideOverlay() }
+            val params = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                PixelFormat.OPAQUE
+            )
+            getSystemService(WindowManager::class.java).addView(view, params)
+            overlay = view
+            overlayPkg = pkg
+            overlayShownAt = SystemClock.elapsedRealtime()
+            true
+        } catch (e: Exception) {
+            overlay = null
+            false
+        }
+    }
+
+    private fun hideOverlay() {
+        val v = overlay ?: return
+        overlay = null
+        overlayPkg = null
+        try {
+            getSystemService(WindowManager::class.java).removeView(v)
+        } catch (e: Exception) {
+            // уже прибрано
+        }
+    }
+
+    /** Якщо користувач перейшов в інший (незаблокований) додаток — прибираємо накладку. */
+    private fun maybeHideOverlayFor(pkg: String) {
+        if (overlay == null) return
+        if (SystemClock.elapsedRealtime() - overlayShownAt < 1500) return // ще йде перехід на робочий стіл
+        if (pkg == overlayPkg || pkg == packageName || pkg == "com.android.systemui") return
+        hideOverlay()
     }
 
     // ---------- Сайти в браузері ----------
