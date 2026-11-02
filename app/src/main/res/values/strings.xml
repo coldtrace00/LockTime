@@ -114,4 +114,25 @@
     <string name="warn_opens_left_text">The open limit for “%s” is almost used up</string>
     <string name="warn_last_open_title">Last open for today</string>
     <string name="warn_last_open_text">The next open of “%s” will be blocked until midnight</string>
+    <string name="dlg_per_day">Set per weekday ›</string>
+    <string name="dlg_same_week">‹ Same for weekdays / weekends</string>
+    <string name="days_short">Mon,Tue,Wed,Thu,Fri,Sat,Sun</string>
+    <string name="desc_by_day">per day, today %s</string>
+    <string name="desc_unlimited">no limit</string>
+    <string name="summary_title">Evening summary</string>
+    <string name="summary_switch">Send a daily summary</string>
+    <string name="summary_at">At %s</string>
+    <string name="summary_hint">One notification: how much time and how many opens went into apps with limits today.</string>
+    <string name="summary_channel">Evening summary</string>
+    <string name="summary_notif_title">Today: %s in apps with limits</string>
+    <string name="summary_line">%1$s — %2$s, opened %3$d times</string>
+    <string name="widget_title">LockTime · today</string>
+    <string name="widget_empty">No limits set yet</string>
+    <string name="widget_blocked">blocked</string>
+    <string name="widget_night">night mode</string>
+    <string name="widget_opens_out">opens used up</string>
+    <string name="widget_time_left">%s left</string>
+    <string name="widget_opens_left">%d opens left</string>
+    <string name="widget_no_limit">no daytime limit</string>
+    <string name="widget_description">Time and opens left today</string>
 </resources>

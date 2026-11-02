@@ -3,59 +3,52 @@ package io.github.timelock
 import android.content.Context
 import android.os.SystemClock
 import android.provider.Settings
-import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalTime
 
 /**
- * Правило для одного додатка. null у числовому полі означає «без обмеження».
+ * Правило для одного додатка. null означає «без обмеження».
  *
- * @param weekday хвилин на день у будні
- * @param weekend хвилин на день у суботу й неділю; null — як у будні
+ * @param minutes хвилин на день для кожного дня тижня: [0] — понеділок … [6] — неділя
  * @param opens скільки разів на день можна відкрити
  * @param night блокувати в нічний режим
  */
 data class Rule(
-    val weekday: Int? = null,
-    val weekend: Int? = null,
+    val minutes: List<Int?> = NO_MINUTES,
     val opens: Int? = null,
     val night: Boolean = false
 ) {
     val isEmpty: Boolean
-        get() = weekday == null && weekend == null && opens == null && !night
+        get() = minutes.all { it == null } && opens == null && !night
 
-    /** Ліміт у вихідні з урахуванням «як у будні». */
-    val effectiveWeekend: Int?
-        get() = weekend ?: weekday
+    fun minutesFor(date: LocalDate): Int? = minutes.getOrNull(date.dayOfWeek.value - 1)
 
-    fun minutesFor(date: LocalDate): Int? {
-        val isWeekend = date.dayOfWeek == DayOfWeek.SATURDAY || date.dayOfWeek == DayOfWeek.SUNDAY
-        return if (isWeekend) effectiveWeekend else weekday
-    }
+    /** Пн–Пт однакові і Сб = Нд — тобто правило вкладається у «будні / вихідні». */
+    val isWeekPattern: Boolean
+        get() = (1..4).all { minutes[it] == minutes[0] } && minutes[5] == minutes[6]
 
-    /** Прибирає дублювання: якщо вихідні = будні, зберігаємо лише будні. */
-    fun normalized(): Rule {
-        val wd = weekday?.takeIf { it > 0 }
-        val we = weekend?.takeIf { it > 0 }
-        return copy(
-            weekday = wd,
-            weekend = if (we == wd) null else we,
-            opens = opens?.takeIf { it > 0 }
-        )
-    }
+    fun normalized(): Rule = copy(
+        minutes = List(7) { i -> minutes.getOrNull(i)?.takeIf { it > 0 } },
+        opens = opens?.takeIf { it > 0 }
+    )
 
     companion object {
+        val NO_MINUTES: List<Int?> = List(7) { null }
         val EMPTY = Rule()
+
+        /** Правило з одним лімітом на будні й іншим (або тим самим) на вихідні. */
+        fun of(weekday: Int?, weekend: Int?, opens: Int?, night: Boolean) = Rule(
+            List(7) { if (it < 5) weekday else (weekend ?: weekday) }, opens, night
+        ).normalized()
 
         private fun stricter(a: Int?, b: Int?): Int? =
             if (a == null) b else if (b == null) a else minOf(a, b)
 
-        /** Найсуворіше з двох правил — кожне поле окремо. */
+        /** Найсуворіше з двох правил — кожен день і кожне поле окремо. */
         fun strictest(a: Rule, b: Rule): Rule = Rule(
-            weekday = stricter(a.weekday, b.weekday),
-            weekend = stricter(a.effectiveWeekend, b.effectiveWeekend),
-            opens = stricter(a.opens, b.opens),
-            night = a.night || b.night
+            List(7) { stricter(a.minutes[it], b.minutes[it]) },
+            stricter(a.opens, b.opens),
+            a.night || b.night
         ).normalized()
     }
 }
@@ -314,7 +307,7 @@ class Prefs(context: Context) {
             if (i <= 0) continue
             val minutes = part.substring(i + 1).toIntOrNull() ?: continue
             val pkg = part.substring(0, i)
-            if (minutes > 0 && pkg !in rules) rules[pkg] = Rule(weekday = minutes)
+            if (minutes > 0 && pkg !in rules) rules[pkg] = Rule.of(minutes, null, null, false)
         }
         sp.edit()
             .putString(KEY_RULES, encodeRules(rules))
@@ -323,7 +316,7 @@ class Prefs(context: Context) {
             .apply()
     }
 
-    // ---------- Формат зберігання: "пакет=будні,вихідні,відкриття,ніч;..." ----------
+    // ---------- Формат зберігання ----------
 
     private fun decodeRules(s: String?): MutableMap<String, Rule> {
         val map = mutableMapOf<String, Rule>()
@@ -332,8 +325,16 @@ class Prefs(context: Context) {
             val i = part.lastIndexOf('=')
             if (i <= 0) continue
             val f = part.substring(i + 1).split(",")
-            if (f.size < 4) continue
-            map[part.substring(0, i)] = Rule(num(f[0]), num(f[1]), num(f[2]), f[3] == "1")
+            val pkg = part.substring(0, i)
+            if (f.size >= 3 && f[0].contains('|')) {
+                // Формат 1.1+: "п|в|с|ч|п|с|н,відкриття,ніч"
+                val days = f[0].split("|").map { num(it) }
+                if (days.size != 7) continue
+                map[pkg] = Rule(days, num(f[1]), f[2] == "1")
+            } else if (f.size >= 4) {
+                // Старий формат: "будні,вихідні,відкриття,ніч"
+                map[pkg] = Rule.of(num(f[0]), num(f[1]), num(f[2]), f[3] == "1")
+            }
         }
         return map
     }
@@ -342,8 +343,26 @@ class Prefs(context: Context) {
 
     private fun encodeRules(map: Map<String, Rule>): String =
         map.entries.joinToString(";") { (pkg, r) ->
-            "$pkg=${r.weekday ?: -1},${r.weekend ?: -1},${r.opens ?: -1},${if (r.night) 1 else 0}"
+            val days = r.minutes.joinToString("|") { (it ?: -1).toString() }
+            "$pkg=$days,${r.opens ?: -1},${if (r.night) 1 else 0}"
         }
+
+    // ---------- Вечірній підсумок ----------
+
+    fun summaryEnabled(): Boolean = sp.getBoolean(KEY_SUMMARY_ON, true)
+    fun summaryTime(): Int = sp.getInt(KEY_SUMMARY_TIME, 21 * 60)
+    fun setSummary(enabled: Boolean, minuteOfDay: Int = summaryTime()) {
+        sp.edit().putBoolean(KEY_SUMMARY_ON, enabled).putInt(KEY_SUMMARY_TIME, minuteOfDay).apply()
+    }
+
+    /** true, якщо підсумок за сьогодні ще не надсилали (і позначає його надісланим). */
+    @Synchronized
+    fun takeSummarySlot(): Boolean {
+        val today = today()
+        if (sp.getLong(KEY_SUMMARY_DAY, -1L) == today) return false
+        sp.edit().putLong(KEY_SUMMARY_DAY, today).apply()
+        return true
+    }
 
     companion object {
         const val MAX_MINUTES = 24 * 60
@@ -360,6 +379,9 @@ class Prefs(context: Context) {
         private const val KEY_OFF_REMAINING = "protection_off_remaining"
         private const val KEY_OFF_LAST_ELAPSED = "protection_off_last_elapsed"
         private const val KEY_OFF_LAST_BOOT = "protection_off_last_boot"
+        private const val KEY_SUMMARY_ON = "summary_on"
+        private const val KEY_SUMMARY_TIME = "summary_time"
+        private const val KEY_SUMMARY_DAY = "summary_day"
         private const val KEY_OLD_ACTIVE = "active_limits"
         private const val KEY_OLD_PENDING = "pending_limits"
     }

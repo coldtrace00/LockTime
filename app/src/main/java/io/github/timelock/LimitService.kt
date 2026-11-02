@@ -32,6 +32,7 @@ class LimitService : AccessibilityService() {
     private var lastBlockAt = 0L
     private var lastGuardCheckAt = 0L
     private var lastBrowserCheckAt = 0L
+    private var lastWidgetAt = 0L
 
     /** "пакет@день" -> найменший поріг (хв), про який уже попередили. */
     private val warned = HashMap<String, Int>()
@@ -44,6 +45,8 @@ class LimitService : AccessibilityService() {
             val pkg = currentPackage()
             checkForeground(pkg)
             if (pkg != null) checkBrowser(pkg, force = true)
+            maybeSendSummary()
+            maybeRefreshWidget()
             handler.postDelayed(this, TICK_MS)
         }
     }
@@ -280,6 +283,63 @@ class LimitService : AccessibilityService() {
         }
     }
 
+    // ---------- Вечірній підсумок і віджет ----------
+
+    /** Раз на день, в обраний час: скільки часу й відкриттів пішло на додатки з лімітами. */
+    private fun maybeSendSummary() {
+        if (!prefs.summaryEnabled()) return
+        val t = java.time.LocalTime.now()
+        if (t.hour * 60 + t.minute < prefs.summaryTime()) return
+        val rules = prefs.rules()
+        if (rules.isEmpty()) return
+        if (!prefs.takeSummarySlot()) return
+
+        val usage = UsageTracker.usageToday(this, rules.keys, null)
+        val rows = usage.entries.filter { it.value.timeMs > 0L || it.value.opens > 0 }
+            .sortedByDescending { it.value.timeMs }
+        if (rows.isEmpty()) return
+        val total = rows.sumOf { it.value.timeMs }
+        val l = loc()
+        val lines = rows.joinToString("\n") { (pkg, u) ->
+            l.getString(
+                R.string.summary_line, labelOf(pkg),
+                MainActivity.formatMinutes(l, (u.timeMs / 60_000L).toInt()), u.opens
+            )
+        }
+        val title = l.getString(R.string.summary_notif_title, MainActivity.formatMinutes(l, (total / 60_000L).toInt()))
+
+        val nm = getSystemService(NotificationManager::class.java) ?: return
+        if (!nm.areNotificationsEnabled()) return
+        nm.createNotificationChannel(
+            NotificationChannel(SUMMARY_CHANNEL_ID, l.getString(R.string.summary_channel), NotificationManager.IMPORTANCE_DEFAULT)
+        )
+        val open = android.app.PendingIntent.getActivity(
+            this, 0, Intent(this, MainActivity::class.java),
+            android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT
+        )
+        val notification = Notification.Builder(this, SUMMARY_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(title)
+            .setContentText(lines.substringBefore('\n'))
+            .setStyle(Notification.BigTextStyle().bigText(lines))
+            .setContentIntent(open)
+            .setAutoCancel(true)
+            .build()
+        try {
+            nm.notify(SUMMARY_NOTIFICATION_ID, notification)
+        } catch (e: SecurityException) {
+            // Сповіщення заборонені — підсумок просто не показуємо.
+        }
+    }
+
+    /** Віджет оновлюється не частіше разу на хвилину і лише якщо він є на робочому столі. */
+    private fun maybeRefreshWidget() {
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastWidgetAt < 60_000L) return
+        lastWidgetAt = now
+        if (LimitWidget.hasWidgets(this)) LimitWidget.update(this)
+    }
+
     // ---------- Захист від видалення ----------
 
     /**
@@ -317,6 +377,8 @@ class LimitService : AccessibilityService() {
     companion object {
         private const val TICK_MS = 3000L
         private const val CHANNEL_ID = "limit_warnings"
+        private const val SUMMARY_CHANNEL_ID = "daily_summary"
+        private const val SUMMARY_NOTIFICATION_ID = 7001
         private val WARN_AT_MINUTES = listOf(15, 10, 5)
 
         private val GUARDED_PACKAGES = setOf(

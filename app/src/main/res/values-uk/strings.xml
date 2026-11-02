@@ -113,4 +113,25 @@
     <string name="warn_opens_left_text">Ліміт відкриттів «%s» майже вичерпано</string>
     <string name="warn_last_open_title">Це останнє відкриття на сьогодні</string>
     <string name="warn_last_open_text">Наступне відкриття «%s» буде заблоковано до опівночі</string>
+    <string name="dlg_per_day">Окремо по днях тижня ›</string>
+    <string name="dlg_same_week">‹ Однаково: будні й вихідні</string>
+    <string name="days_short">Пн,Вт,Ср,Чт,Пт,Сб,Нд</string>
+    <string name="desc_by_day">по днях, сьогодні %s</string>
+    <string name="desc_unlimited">без ліміту</string>
+    <string name="summary_title">Вечірній підсумок</string>
+    <string name="summary_switch">Надсилати підсумок дня</string>
+    <string name="summary_at">О %s</string>
+    <string name="summary_hint">Одне сповіщення: скільки часу й відкриттів сьогодні пішло на додатки з лімітами.</string>
+    <string name="summary_channel">Вечірній підсумок</string>
+    <string name="summary_notif_title">Сьогодні: %s у додатках з лімітами</string>
+    <string name="summary_line">%1$s — %2$s, відкрито %3$d р.</string>
+    <string name="widget_title">LockTime · сьогодні</string>
+    <string name="widget_empty">Ліміти ще не задано</string>
+    <string name="widget_blocked">заблоковано</string>
+    <string name="widget_night">нічний режим</string>
+    <string name="widget_opens_out">відкриття вичерпано</string>
+    <string name="widget_time_left">ще %s</string>
+    <string name="widget_opens_left">ще %d відкр.</string>
+    <string name="widget_no_limit">без денного ліміту</string>
+    <string name="widget_description">Скільки часу й відкриттів лишилось сьогодні</string>
 </resources>

@@ -63,6 +63,8 @@ class MainActivity : Activity() {
     private lateinit var nightFromButton: TextView
     private lateinit var nightToButton: TextView
     private lateinit var nightText: TextView
+    private lateinit var summarySwitch: Switch
+    private lateinit var summaryTimeButton: TextView
 
     private var apps: List<AppItem> = emptyList()
     private var usage: Map<String, AppUsage> = emptyMap()
@@ -166,6 +168,27 @@ class MainActivity : Activity() {
             addView(nightText)
         }, cardParams())
 
+        // ---- Вечірній підсумок ----
+        summarySwitch = Switch(this).apply {
+            text = getString(R.string.summary_switch)
+            textSize = 15f
+            setTextColor(Look.text(this@MainActivity))
+        }
+        summaryTimeButton = pill { pickSummaryTime() }
+        header.addView(card().apply {
+            addView(cardTitle(getString(R.string.summary_title)))
+            addView(summarySwitch)
+            addView(LinearLayout(this@MainActivity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                setPadding(0, dp(8), 0, 0)
+                addView(summaryTimeButton)
+            })
+            addView(mutedText(13f).apply {
+                text = getString(R.string.summary_hint)
+                setPadding(0, dp(8), 0, 0)
+            })
+        }, cardParams())
+
         // ---- Статистика ----
         header.addView(card().apply {
             addView(LinearLayout(this@MainActivity).apply {
@@ -258,6 +281,15 @@ class MainActivity : Activity() {
             prefs.protectionEnabled() -> getString(R.string.protection_note_on)
             else -> getString(R.string.protection_note_off)
         }
+
+        summarySwitch.setOnCheckedChangeListener(null)
+        summarySwitch.isChecked = prefs.summaryEnabled()
+        summarySwitch.setOnCheckedChangeListener { _, on ->
+            prefs.setSummary(on)
+            refreshStatus()
+        }
+        summaryTimeButton.text = getString(R.string.summary_at, formatTime(prefs.summaryTime()))
+        summaryTimeButton.alpha = if (prefs.summaryEnabled()) 1f else 0.4f
 
         val w = prefs.nightWindow()
         nightFromButton.text = getString(R.string.night_from_btn, formatTime(w.start))
@@ -396,6 +428,14 @@ class MainActivity : Activity() {
             false
         }
 
+    private fun pickSummaryTime() {
+        val t = prefs.summaryTime()
+        TimePickerDialog(this, { _, h, m ->
+            prefs.setSummary(true, h * 60 + m)
+            refreshStatus()
+        }, t / 60, t % 60, true).show()
+    }
+
     // ---------- Нічний режим ----------
 
     private fun pickNightEdge(isStart: Boolean) {
@@ -409,6 +449,7 @@ class MainActivity : Activity() {
             } else {
                 showResult(prefs.setNightWindow(window))
                 refreshStatus()
+                LimitWidget.update(this)
             }
         }, minute / 60, minute % 60, true).apply {
             setTitle(getString(if (isStart) R.string.night_from_title else R.string.night_to_title))
@@ -528,9 +569,72 @@ class MainActivity : Activity() {
         val current = prefs.rules()[app.pkg]
         val shown = prefs.pendingRules()[app.pkg] ?: current ?: Rule()
         val minutesLabel: (Int) -> String = { formatMinutes(this, it) }
+        fun parseMinutes(e: EditText) =
+            e.text.toString().toIntOrNull()?.takeIf { it > 0 }?.coerceAtMost(Prefs.MAX_MINUTES)
 
-        val weekdayInput = numberField(shown.weekday, getString(R.string.hint_type_number))
-        val weekendInput = numberField(shown.weekend, getString(R.string.hint_same_as_weekdays))
+        // Будні / вихідні
+        val m = shown.minutes
+        val weekdayInput = numberField(m[0], getString(R.string.hint_type_number))
+        val weekendInput = numberField(m[5].takeIf { it != m[0] }, getString(R.string.hint_same_as_weekdays))
+        val weekBlock = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(fieldLabel(getString(R.string.dlg_weekdays)))
+            addView(weekdayInput)
+            addView(chipRow(weekdayInput, PRESET_MINUTES, minutesLabel))
+            addView(fieldLabel(getString(R.string.dlg_weekends)))
+            addView(weekendInput)
+            addView(chipRow(weekendInput, PRESET_MINUTES, minutesLabel))
+        }
+
+        // Окремо по днях тижня
+        val dayNames = getString(R.string.days_short).split(",")
+        val dayInputs = List(7) { numberField(m[it], getString(R.string.hint_no_limit)) }
+        val daysBlock = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            for (i in 0 until 7) {
+                addView(LinearLayout(this@MainActivity).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    addView(TextView(this@MainActivity).apply {
+                        text = dayNames.getOrElse(i) { "" }
+                        textSize = 14f
+                        setTextColor(Look.text(this@MainActivity))
+                    }, LinearLayout.LayoutParams(dp(44), ViewGroup.LayoutParams.WRAP_CONTENT))
+                    addView(dayInputs[i], LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+                    addView(mutedText(13f).apply { text = getString(R.string.dlg_minutes_hint) })
+                })
+            }
+        }
+
+        var perDay = !shown.isWeekPattern
+        val modeToggle = TextView(this).apply {
+            textSize = 14f
+            setTextColor(Look.accentText(this@MainActivity))
+            setPadding(0, dp(10), 0, dp(4))
+        }
+        fun applyMode() {
+            weekBlock.visibility = if (perDay) View.GONE else View.VISIBLE
+            daysBlock.visibility = if (perDay) View.VISIBLE else View.GONE
+            modeToggle.text = getString(if (perDay) R.string.dlg_same_week else R.string.dlg_per_day)
+        }
+        modeToggle.setOnClickListener {
+            if (!perDay) {
+                // Переносимо значення будні/вихідні в поля днів.
+                val wd = parseMinutes(weekdayInput)
+                val we = parseMinutes(weekendInput) ?: wd
+                for (i in 0 until 7) dayInputs[i].setText((if (i < 5) wd else we)?.toString() ?: "")
+            } else {
+                // Назад: будні беремо з понеділка, вихідні — із суботи.
+                val mon = parseMinutes(dayInputs[0])
+                val sat = parseMinutes(dayInputs[5])
+                weekdayInput.setText(mon?.toString() ?: "")
+                weekendInput.setText(if (sat == mon) "" else sat?.toString() ?: "")
+            }
+            perDay = !perDay
+            applyMode()
+        }
+        applyMode()
+
         val opensInput = numberField(shown.opens, getString(R.string.hint_type_number))
         val nightBox = CheckBox(this).apply {
             val w = prefs.nightWindow()
@@ -545,12 +649,9 @@ class MainActivity : Activity() {
 
             addView(dialogSection(getString(R.string.dlg_time)))
             addView(mutedText(12f).apply { text = getString(R.string.dlg_time_hint) })
-            addView(fieldLabel(getString(R.string.dlg_weekdays)))
-            addView(weekdayInput)
-            addView(chipRow(weekdayInput, PRESET_MINUTES, minutesLabel))
-            addView(fieldLabel(getString(R.string.dlg_weekends)))
-            addView(weekendInput)
-            addView(chipRow(weekendInput, PRESET_MINUTES, minutesLabel))
+            addView(weekBlock)
+            addView(daysBlock)
+            addView(modeToggle)
 
             addView(dialogSection(getString(R.string.dlg_opens)))
             addView(mutedText(12f).apply { text = getString(R.string.dlg_opens_hint) })
@@ -583,13 +684,12 @@ class MainActivity : Activity() {
             .setTitle(app.label)
             .setView(ScrollView(this).apply { addView(form) })
             .setPositiveButton(R.string.btn_save) { _, _ ->
-                fun parse(e: EditText) = e.text.toString().toIntOrNull()?.takeIf { it > 0 }
-                val rule = Rule(
-                    weekday = parse(weekdayInput)?.coerceAtMost(Prefs.MAX_MINUTES),
-                    weekend = parse(weekendInput)?.coerceAtMost(Prefs.MAX_MINUTES),
-                    opens = parse(opensInput),
-                    night = nightBox.isChecked
-                )
+                val opens = opensInput.text.toString().toIntOrNull()?.takeIf { it > 0 }
+                val rule = if (perDay) {
+                    Rule(List(7) { parseMinutes(dayInputs[it]) }, opens, nightBox.isChecked).normalized()
+                } else {
+                    Rule.of(parseMinutes(weekdayInput), parseMinutes(weekendInput), opens, nightBox.isChecked)
+                }
                 applyRule(app.pkg, rule)
             }
             .setNegativeButton(R.string.btn_cancel, null)
@@ -600,6 +700,7 @@ class MainActivity : Activity() {
 
     private fun applyRule(pkg: String, rule: Rule) {
         showResult(prefs.setRule(pkg, rule))
+        LimitWidget.update(this)
         if (!isAccessibilityEnabled() || !hasUsageAccess()) {
             Toast.makeText(this, getString(R.string.toast_need_permissions), Toast.LENGTH_LONG).show()
         }
@@ -619,17 +720,21 @@ class MainActivity : Activity() {
         Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
     }
 
+    private fun minutesOrNone(v: Int?): String =
+        v?.let { formatMinutes(this, it) } ?: getString(R.string.desc_unlimited)
+
     private fun describe(rule: Rule): String {
         val parts = mutableListOf<String>()
-        val wd = rule.weekday
-        val we = rule.weekend
+        val m = rule.minutes
+        val first = m[0]
         when {
-            wd != null && we != null -> {
-                parts.add(getString(R.string.desc_weekdays, formatMinutes(this, wd)))
-                parts.add(getString(R.string.desc_weekends, formatMinutes(this, we)))
+            m.all { it == null } -> {}
+            first != null && m.all { it == first } -> parts.add(getString(R.string.desc_per_day, formatMinutes(this, first)))
+            rule.isWeekPattern -> {
+                parts.add(getString(R.string.desc_weekdays, minutesOrNone(m[0])))
+                parts.add(getString(R.string.desc_weekends, minutesOrNone(m[5])))
             }
-            we != null -> parts.add(getString(R.string.desc_weekends, formatMinutes(this, we)))
-            wd != null -> parts.add(getString(R.string.desc_per_day, formatMinutes(this, wd)))
+            else -> parts.add(getString(R.string.desc_by_day, minutesOrNone(rule.minutesFor(LocalDate.now()))))
         }
         rule.opens?.let { parts.add(getString(R.string.desc_opens, it)) }
         if (rule.night) parts.add(getString(R.string.desc_night))
