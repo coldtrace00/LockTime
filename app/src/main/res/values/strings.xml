@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">LockTime</string>
+    <string name="service_description">LockTime стежить, який додаток зараз відкритий, і закриває його, коли денний ліміт часу вичерпано. Нічого не збирає і нікуди не надсилає — усе лишається на телефоні.</string>
+</resources>
