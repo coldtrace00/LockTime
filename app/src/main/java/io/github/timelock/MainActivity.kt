@@ -157,19 +157,25 @@ class MainActivity : Activity() {
             nav.addView(LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER_HORIZONTAL
+                // Значок у «пігулці» фіксованого розміру — по центру кнопки.
                 addView(ImageView(this@MainActivity).apply {
                     setImageResource(icon)
                     setColorFilter(color)
-                    if (on) background = Look.rounded(Look.accentSoft(this@MainActivity), dpf(14))
-                    setPadding(dp(18), dp(4), dp(18), dp(4))
-                }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(30)))
+                    scaleType = ImageView.ScaleType.CENTER_INSIDE
+                    if (on) background = Look.rounded(Look.accentSoft(this@MainActivity), dpf(16))
+                    setPadding(0, dp(4), 0, dp(4))
+                }, LinearLayout.LayoutParams(dp(60), dp(32)).apply { gravity = Gravity.CENTER_HORIZONTAL })
+                // Підпис — теж по центру і в один рядок, щоб не з'їжджав.
                 addView(TextView(this@MainActivity).apply {
                     text = getString(label)
                     textSize = 12f
+                    gravity = Gravity.CENTER
+                    setSingleLine(true)
+                    ellipsize = android.text.TextUtils.TruncateAt.END
                     setTextColor(color)
                     if (on) setTypeface(typeface, Typeface.BOLD)
-                    setPadding(0, dp(3), 0, 0)
-                })
+                    setPadding(dp(2), dp(4), dp(2), 0)
+                }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
                 setOnClickListener { showTab(t) }
             }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         }
