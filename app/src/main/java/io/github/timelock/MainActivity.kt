@@ -6,6 +6,7 @@ import android.app.AppOpsManager
 import android.app.NotificationManager
 import android.app.TimePickerDialog
 import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
@@ -70,39 +71,39 @@ class MainActivity : Activity() {
             setPadding(dp(16), dp(12), dp(16), dp(8))
         }
 
-        header.addView(sectionTitle("Дозволи"))
+        header.addView(sectionTitle(getString(R.string.section_permissions)))
 
         usageStatus = TextView(this)
         usageButton = Button(this).apply {
-            text = "Надати"
+            text = getString(R.string.btn_grant)
             setOnClickListener { openUsageAccess() }
         }
         header.addView(permissionRow(usageStatus, usageButton))
 
         a11yStatus = TextView(this)
         a11yButton = Button(this).apply {
-            text = "Увімкнути"
+            text = getString(R.string.btn_enable)
             setOnClickListener { showAccessibilityHelp() }
         }
         header.addView(permissionRow(a11yStatus, a11yButton))
 
         notifStatus = TextView(this)
         notifButton = Button(this).apply {
-            text = "Дозволити"
+            text = getString(R.string.btn_allow)
             setOnClickListener { requestNotifications() }
         }
         header.addView(permissionRow(notifStatus, notifButton))
 
         batteryStatus = TextView(this)
         batteryButton = Button(this).apply {
-            text = "Вимкнути"
+            text = getString(R.string.btn_disable)
             setOnClickListener { openBatterySettings() }
         }
         header.addView(permissionRow(batteryStatus, batteryButton))
 
-        header.addView(sectionTitle("Захист від видалення"))
+        header.addView(sectionTitle(getString(R.string.section_protection)))
         protectionSwitch = Switch(this).apply {
-            text = "Не давати видалити чи вимкнути LockTime"
+            text = getString(R.string.protection_switch)
             textSize = 16f
         }
         header.addView(protectionSwitch)
@@ -113,29 +114,28 @@ class MainActivity : Activity() {
         }
         header.addView(protectionNote)
 
-        header.addView(sectionTitle("Нічний режим"))
+        header.addView(sectionTitle(getString(R.string.section_night)))
         nightText = TextView(this).apply { textSize = 14f }
         header.addView(nightText)
         header.addView(Button(this).apply {
-            text = "Змінити час"
+            text = getString(R.string.btn_change_time)
             setOnClickListener { pickNightWindow() }
         })
 
-        header.addView(sectionTitle("Статистика"))
+        header.addView(sectionTitle(getString(R.string.section_stats)))
         header.addView(Button(this).apply {
-            text = "Статистика за тиждень"
+            text = getString(R.string.btn_weekly_stats)
             setOnClickListener { startActivity(Intent(this@MainActivity, StatsActivity::class.java)) }
         })
 
-        header.addView(sectionTitle("Додатки"))
+        header.addView(sectionTitle(getString(R.string.section_apps)))
         header.addView(TextView(this).apply {
-            text = "Торкніться додатка, щоб задати ліміти. Посилити можна одразу, " +
-                "а послабити чи прибрати — лише з наступного дня."
+            text = getString(R.string.apps_hint)
             textSize = 13f
             setTextColor(Color.GRAY)
         })
         loadingText = TextView(this).apply {
-            text = "Завантажую список додатків…"
+            text = getString(R.string.loading_apps)
             setPadding(0, dp(12), 0, 0)
         }
         header.addView(loadingText)
@@ -166,20 +166,20 @@ class MainActivity : Activity() {
 
     private fun refreshStatus() {
         val hasUsage = hasUsageAccess()
-        usageStatus.text = (if (hasUsage) "✅ " else "❌ ") + "Статистика використання"
+        usageStatus.text = (if (hasUsage) "✅ " else "❌ ") + getString(R.string.perm_usage)
         usageButton.visibility = if (hasUsage) View.GONE else View.VISIBLE
 
         val hasA11y = isAccessibilityEnabled()
-        a11yStatus.text = (if (hasA11y) "✅ " else "❌ ") + "Служба спеціальних можливостей"
+        a11yStatus.text = (if (hasA11y) "✅ " else "❌ ") + getString(R.string.perm_a11y)
         a11yButton.visibility = if (hasA11y) View.GONE else View.VISIBLE
 
         val notif = notificationsEnabled()
-        notifStatus.text = (if (notif) "✅ " else "⚠️ ") + "Сповіщення (за 15/10/5 хв)"
+        notifStatus.text = (if (notif) "✅ " else "⚠️ ") + getString(R.string.perm_notifications)
         notifButton.visibility = if (notif) View.GONE else View.VISIBLE
 
         val pm = getSystemService(PowerManager::class.java)
         val noBatteryLimit = pm?.isIgnoringBatteryOptimizations(packageName) == true
-        batteryStatus.text = (if (noBatteryLimit) "✅ " else "⚠️ ") + "Без оптимізації батареї"
+        batteryStatus.text = (if (noBatteryLimit) "✅ " else "⚠️ ") + getString(R.string.perm_battery)
         batteryButton.visibility = if (noBatteryLimit) View.GONE else View.VISIBLE
 
         protectionSwitch.setOnCheckedChangeListener(null)
@@ -189,24 +189,24 @@ class MainActivity : Activity() {
         val nightApps = prefs.rules().values.count { it.night }
         val pendingNight = prefs.pendingNightWindow()
         nightText.text = buildString {
-            append("З ").append(formatTime(w.start)).append(" до ").append(formatTime(w.end))
-            append(" блокуються додатки з позначкою «вночі»")
-            append(if (nightApps == 0) " (поки жодного)." else " ($nightApps).")
-            if (w.coversNow() && nightApps > 0) append("\nЗараз нічний режим діє.")
+            if (nightApps == 0) {
+                append(getString(R.string.night_summary_none, formatTime(w.start), formatTime(w.end)))
+            } else {
+                append(getString(R.string.night_summary_count, formatTime(w.start), formatTime(w.end), nightApps))
+            }
+            if (w.coversNow() && nightApps > 0) append("\n").append(getString(R.string.night_active_now))
             if (pendingNight != null) {
-                append("\nЗ завтра: ").append(formatTime(pendingNight.start))
-                    .append("–").append(formatTime(pendingNight.end)).append(".")
+                append("\n").append(
+                    getString(R.string.night_pending, formatTime(pendingNight.start), formatTime(pendingNight.end))
+                )
             }
         }
 
         val offAt = prefs.protectionOffAt()
         protectionNote.text = when {
-            offAt != null -> "Захист буде знято орієнтовно ${formatDateTime(offAt)}. Після цього " +
-                "LockTime можна видалити. Передумали — увімкніть перемикач знову."
-            prefs.protectionEnabled() -> "Увімкнено: екрани налаштувань, де можна видалити, зупинити " +
-                "чи вимкнути LockTime, одразу закриваються."
-            else -> "Коли увімкнено, LockTime не можна видалити, зупинити чи вимкнути в налаштуваннях. " +
-                "Вимкнути захист можна тут — подіє через 72 години."
+            offAt != null -> getString(R.string.protection_note_pending, formatDateTime(offAt))
+            prefs.protectionEnabled() -> getString(R.string.protection_note_on)
+            else -> getString(R.string.protection_note_off)
         }
     }
 
@@ -232,31 +232,23 @@ class MainActivity : Activity() {
 
     private fun openUsageAccess() {
         safeStart(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
-        Toast.makeText(this, "Знайдіть LockTime у списку й увімкніть", Toast.LENGTH_LONG).show()
+        Toast.makeText(this, getString(R.string.toast_find_in_list), Toast.LENGTH_LONG).show()
     }
 
     private fun showAccessibilityHelp() {
         AlertDialog.Builder(this)
-            .setTitle("Служба спеціальних можливостей")
-            .setMessage(
-                "Вона потрібна, щоб помітити відкриття Instagram, TikTok тощо і закрити їх, " +
-                    "коли час вийшов.\n\n" +
-                    "Samsung: Налаштування → Спеціальні можливості → Установлені програми → " +
-                    "LockTime → увімкнути.\n\n" +
-                    "Якщо перемикач сірий і пише «Обмежене налаштування» — натисніть " +
-                    "«Інформація про додаток», там ⋮ (угорі праворуч) → " +
-                    "«Дозволити обмежені налаштування», і поверніться сюди."
-            )
-            .setPositiveButton("Відкрити") { _, _ ->
+            .setTitle(R.string.a11y_title)
+            .setMessage(R.string.a11y_message)
+            .setPositiveButton(R.string.btn_open) { _, _ ->
                 safeStart(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
             }
-            .setNeutralButton("Інформація про додаток") { _, _ ->
+            .setNeutralButton(R.string.btn_app_info) { _, _ ->
                 safeStart(
                     Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
                         .setData(Uri.parse("package:$packageName"))
                 )
             }
-            .setNegativeButton("Скасувати", null)
+            .setNegativeButton(R.string.btn_cancel, null)
             .show()
     }
 
@@ -305,17 +297,13 @@ class MainActivity : Activity() {
     private fun onProtectionToggled(checked: Boolean) {
         if (checked) {
             AlertDialog.Builder(this)
-                .setTitle("Увімкнути захист?")
-                .setMessage(
-                    "Поки захист увімкнено, сторінки налаштувань з LockTime (видалення, " +
-                        "примусова зупинка, вимкнення служби) будуть одразу закриватися.\n\n" +
-                        "Вимкнути захист можна лише тут, і подіє це через 72 години."
-                )
-                .setPositiveButton("Увімкнути") { _, _ ->
+                .setTitle(R.string.protect_on_title)
+                .setMessage(R.string.protect_on_message)
+                .setPositiveButton(R.string.btn_turn_on) { _, _ ->
                     prefs.setProtection(true)
                     refreshStatus()
                 }
-                .setNegativeButton("Скасувати") { _, _ -> refreshStatus() }
+                .setNegativeButton(R.string.btn_cancel) { _, _ -> refreshStatus() }
                 .setOnCancelListener { refreshStatus() }
                 .show()
         } else {
@@ -323,15 +311,9 @@ class MainActivity : Activity() {
             refreshStatus()
             if (offAt != null) {
                 AlertDialog.Builder(this)
-                    .setTitle("Захист буде знято через 72 години")
-                    .setMessage(
-                        "Видалити LockTime можна буде ${formatDateTime(offAt)}.\n\n" +
-                            "Відлік іде за внутрішнім таймером, тож переведення годинника не допоможе. " +
-                            "Якщо телефон буде вимкнений, цей час не зараховується і дата зсунеться.\n\n" +
-                            "До того часу захист працює як і раніше. Якщо передумаєте — " +
-                            "увімкніть перемикач знову, і відлік скасується."
-                    )
-                    .setPositiveButton("Зрозуміло", null)
+                    .setTitle(R.string.protect_off_title)
+                    .setMessage(getString(R.string.protect_off_message, formatDateTime(offAt)))
+                    .setPositiveButton(R.string.btn_got_it, null)
                     .show()
             }
         }
@@ -399,16 +381,16 @@ class MainActivity : Activity() {
             TimePickerDialog(this, { _, h2, m2 ->
                 val end = h2 * 60 + m2
                 if (start == end) {
-                    Toast.makeText(this, "Початок і кінець не можуть збігатися", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this, getString(R.string.toast_night_same), Toast.LENGTH_LONG).show()
                 } else {
                     showResult(prefs.setNightWindow(NightWindow(start, end)))
                     refreshStatus()
                 }
             }, current.end / 60, current.end % 60, true).apply {
-                setTitle("До котрої години")
+                setTitle(getString(R.string.night_to_title))
             }.show()
         }, current.start / 60, current.start % 60, true).apply {
-            setTitle("З котрої години")
+            setTitle(getString(R.string.night_from_title))
         }.show()
     }
 
@@ -427,7 +409,7 @@ class MainActivity : Activity() {
         val row = LinearLayout(this@MainActivity).apply { orientation = LinearLayout.HORIZONTAL }
         for (m in PRESET_MINUTES) {
             row.addView(Button(this@MainActivity).apply {
-                text = formatMinutes(m)
+                text = formatMinutes(this@MainActivity, m)
                 textSize = 12f
                 setAllCaps(false)
                 minWidth = 0
@@ -452,29 +434,29 @@ class MainActivity : Activity() {
         val current = prefs.rules()[app.pkg]
         val shown = prefs.pendingRules()[app.pkg] ?: current ?: Rule()
 
-        val weekdayInput = minutesField(shown.weekday, "без обмеження")
-        val weekendInput = minutesField(shown.weekend, "як у будні")
-        val opensInput = minutesField(shown.opens, "без обмеження")
+        val weekdayInput = minutesField(shown.weekday, getString(R.string.hint_no_limit))
+        val weekendInput = minutesField(shown.weekend, getString(R.string.hint_same_as_weekdays))
+        val opensInput = minutesField(shown.opens, getString(R.string.hint_no_limit))
         val nightBox = CheckBox(this).apply {
             val w = prefs.nightWindow()
-            text = "Блокувати в нічний режим (${formatTime(w.start)}–${formatTime(w.end)})"
+            text = getString(R.string.night_checkbox, formatTime(w.start), formatTime(w.end))
             isChecked = shown.night
         }
 
         val form = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(24), dp(4), dp(24), 0)
-            addView(label("Хвилин на день у будні"))
+            addView(label(getString(R.string.label_weekday)))
             addView(weekdayInput)
             addView(presets(weekdayInput))
-            addView(label("Хвилин на день у вихідні (сб, нд)"))
+            addView(label(getString(R.string.label_weekend)))
             addView(weekendInput)
             addView(presets(weekendInput))
-            addView(label("Скільки разів на день можна відкрити"))
+            addView(label(getString(R.string.label_opens)))
             addView(opensInput)
             addView(nightBox.apply { setPadding(0, dp(12), 0, 0) })
             addView(TextView(this@MainActivity).apply {
-                text = "Порожнє поле — без обмеження. Посилити можна одразу, послабити — з завтра."
+                text = getString(R.string.rule_footer)
                 textSize = 12f
                 setTextColor(Color.GRAY)
                 setPadding(0, dp(12), 0, dp(8))
@@ -484,7 +466,7 @@ class MainActivity : Activity() {
         val builder = AlertDialog.Builder(this)
             .setTitle(app.label)
             .setView(ScrollView(this).apply { addView(form) })
-            .setPositiveButton("Зберегти") { _, _ ->
+            .setPositiveButton(R.string.btn_save) { _, _ ->
                 fun parse(e: EditText) = e.text.toString().toIntOrNull()?.takeIf { it > 0 }
                 val rule = Rule(
                     weekday = parse(weekdayInput)?.coerceAtMost(Prefs.MAX_MINUTES),
@@ -494,9 +476,9 @@ class MainActivity : Activity() {
                 )
                 applyRule(app.pkg, rule)
             }
-            .setNegativeButton("Скасувати", null)
+            .setNegativeButton(R.string.btn_cancel, null)
         if (current != null) {
-            builder.setNeutralButton("Прибрати все") { _, _ -> applyRule(app.pkg, Rule()) }
+            builder.setNeutralButton(R.string.btn_remove_all) { _, _ -> applyRule(app.pkg, Rule()) }
         }
         builder.show()
     }
@@ -504,7 +486,7 @@ class MainActivity : Activity() {
     private fun applyRule(pkg: String, rule: Rule) {
         showResult(prefs.setRule(pkg, rule))
         if (!isAccessibilityEnabled() || !hasUsageAccess()) {
-            Toast.makeText(this, "Щоб блокування працювало, надайте дозволи вгорі", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, getString(R.string.toast_need_permissions), Toast.LENGTH_LONG).show()
         }
         sortApps()
         refreshUsage()
@@ -514,9 +496,9 @@ class MainActivity : Activity() {
 
     private fun showResult(result: Prefs.Result) {
         val msg = when (result) {
-            Prefs.Result.APPLIED -> "Збережено"
-            Prefs.Result.PARTLY -> "Суворіші зміни вже діють, послаблення — з завтра"
-            Prefs.Result.TOMORROW -> "Послаблення запрацює завтра"
+            Prefs.Result.APPLIED -> getString(R.string.result_applied)
+            Prefs.Result.PARTLY -> getString(R.string.result_partly)
+            Prefs.Result.TOMORROW -> getString(R.string.result_tomorrow)
             Prefs.Result.UNCHANGED -> return
         }
         Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
@@ -528,15 +510,15 @@ class MainActivity : Activity() {
         val we = rule.weekend
         when {
             wd != null && we != null -> {
-                parts.add("будні ${formatMinutes(wd)}")
-                parts.add("вихідні ${formatMinutes(we)}")
+                parts.add(getString(R.string.desc_weekdays, formatMinutes(this, wd)))
+                parts.add(getString(R.string.desc_weekends, formatMinutes(this, we)))
             }
-            we != null -> parts.add("вихідні ${formatMinutes(we)}")
-            wd != null -> parts.add(formatMinutes(wd) + " на день")
+            we != null -> parts.add(getString(R.string.desc_weekends, formatMinutes(this, we)))
+            wd != null -> parts.add(getString(R.string.desc_per_day, formatMinutes(this, wd)))
         }
-        rule.opens?.let { parts.add("до $it відкр.") }
-        if (rule.night) parts.add("вночі")
-        return if (parts.isEmpty()) "без обмежень" else parts.joinToString(" · ")
+        rule.opens?.let { parts.add(getString(R.string.desc_opens, it)) }
+        if (rule.night) parts.add(getString(R.string.desc_night))
+        return if (parts.isEmpty()) getString(R.string.desc_none) else parts.joinToString(" · ")
     }
 
     // ---------- Рядок списку ----------
@@ -589,14 +571,14 @@ class MainActivity : Activity() {
             var blocked = false
             val sb = StringBuilder()
             if (rule == null) {
-                sb.append("Без ліміту")
+                sb.append(getString(R.string.row_no_limit))
             } else {
                 val limitMin = rule.minutesFor(LocalDate.now())
                 val maxOpens = rule.opens
                 val status = when {
-                    rule.night && prefs.nightWindow().coversNow() -> "🌙 Нічний режим"
-                    maxOpens != null && used.opens >= maxOpens -> "⛔ Відкриття вичерпано"
-                    limitMin != null && used.timeMs >= limitMin * 60_000L -> "⛔ Заблоковано до опівночі"
+                    rule.night && prefs.nightWindow().coversNow() -> getString(R.string.status_night)
+                    maxOpens != null && used.opens >= maxOpens -> getString(R.string.status_opens)
+                    limitMin != null && used.timeMs >= limitMin * 60_000L -> getString(R.string.status_time)
                     else -> null
                 }
                 if (status != null) {
@@ -604,11 +586,16 @@ class MainActivity : Activity() {
                     sb.append(status).append("\n")
                 }
                 sb.append(describe(rule))
-                sb.append("\nСьогодні: ").append(formatMinutes((used.timeMs / 60_000L).toInt()))
-                sb.append(", відкрито ").append(used.opens).append(" р.")
+                sb.append("\n").append(
+                    getString(
+                        R.string.row_today,
+                        formatMinutes(this@MainActivity, (used.timeMs / 60_000L).toInt()),
+                        used.opens
+                    )
+                )
             }
             if (pending != null) {
-                sb.append("\nЗ завтра: ").append(describe(pending))
+                sb.append("\n").append(getString(R.string.row_tomorrow, describe(pending)))
             }
             holder.subtitle.text = sb.toString()
             holder.subtitle.setTextColor(
@@ -647,16 +634,16 @@ class MainActivity : Activity() {
             String.format(java.util.Locale.ROOT, "%02d:%02d", minuteOfDay / 60, minuteOfDay % 60)
 
         fun formatDateTime(millis: Long): String =
-            java.text.SimpleDateFormat("d.MM.yyyy 'о' HH:mm", java.util.Locale.getDefault())
+            java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.MEDIUM, java.text.DateFormat.SHORT)
                 .format(java.util.Date(millis))
 
-        fun formatMinutes(minutes: Int): String {
+        fun formatMinutes(context: Context, minutes: Int): String {
             val h = minutes / 60
             val m = minutes % 60
             return when {
-                h == 0 -> "$m хв"
-                m == 0 -> "$h год"
-                else -> "$h год $m хв"
+                h == 0 -> context.getString(R.string.fmt_minutes, m)
+                m == 0 -> context.getString(R.string.fmt_hours, h)
+                else -> context.getString(R.string.fmt_hours_minutes, h, m)
             }
         }
     }

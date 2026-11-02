@@ -22,14 +22,14 @@ class StatsActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        title = "Статистика за тиждень"
+        title = getString(R.string.stats_title)
 
         list = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), dp(12), dp(16), dp(16))
         }
         list.addView(TextView(this).apply {
-            text = "Рахую…"
+            text = getString(R.string.stats_loading)
             textSize = 15f
         })
         setContentView(ScrollView(this).apply { addView(list) })
@@ -67,7 +67,7 @@ class StatsActivity : Activity() {
         list.removeAllViews()
         if (rows.isEmpty()) {
             list.addView(TextView(this).apply {
-                text = "Немає даних. Перевірте, чи надано дозвіл «Статистика використання»."
+                text = getString(R.string.stats_empty)
                 textSize = 15f
             })
             return
@@ -75,12 +75,12 @@ class StatsActivity : Activity() {
 
         val total = rows.sumOf { it.ms }
         list.addView(TextView(this).apply {
-            text = "За останні $DAYS днів: ${formatMs(total)}"
+            text = getString(R.string.stats_total, DAYS, formatMs(total))
             textSize = 20f
             setTypeface(typeface, Typeface.BOLD)
         })
         list.addView(TextView(this).apply {
-            text = "У середньому ${formatMs(total / DAYS)} на день. Синім — додатки з лімітом."
+            text = getString(R.string.stats_average, formatMs(total / DAYS))
             textSize = 13f
             setTextColor(Color.GRAY)
             setPadding(0, dp(4), 0, dp(12))
@@ -95,7 +95,7 @@ class StatsActivity : Activity() {
                 textSize = 15f
             }
             val detail = TextView(this).apply {
-                text = "${formatMs(r.ms)} · ${formatMs(r.ms / DAYS)} на день"
+                text = getString(R.string.stats_row, formatMs(r.ms), formatMs(r.ms / DAYS))
                 textSize = 12f
                 setTextColor(color)
             }
@@ -128,7 +128,7 @@ class StatsActivity : Activity() {
 
     private fun formatMs(ms: Long): String {
         val minutes = (ms / 60_000L).toInt()
-        return if (minutes < 1) "<1 хв" else MainActivity.formatMinutes(minutes)
+        return if (minutes < 1) getString(R.string.fmt_less_than_minute) else MainActivity.formatMinutes(this, minutes)
     }
 
     companion object {

@@ -216,8 +216,8 @@ class LimitService : AccessibilityService() {
         } catch (e: Exception) {
             pkg
         }
-        val title = "Залишилось $minutes хв"
-        val text = "Скоро час у «$label» на сьогодні вийде"
+        val title = getString(R.string.warn_title, minutes)
+        val text = getString(R.string.warn_text, label)
 
         val nm = getSystemService(NotificationManager::class.java)
         if (nm == null || !nm.areNotificationsEnabled()) {
@@ -225,7 +225,7 @@ class LimitService : AccessibilityService() {
             return
         }
         nm.createNotificationChannel(
-            NotificationChannel(CHANNEL_ID, "Попередження про ліміт", NotificationManager.IMPORTANCE_HIGH)
+            NotificationChannel(CHANNEL_ID, getString(R.string.warn_channel), NotificationManager.IMPORTANCE_HIGH)
         )
         val notification = Notification.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
@@ -269,7 +269,7 @@ class LimitService : AccessibilityService() {
             lastBlockAt = now
             Toast.makeText(
                 this,
-                "Захист LockTime увімкнено. Зняти його можна в додатку — через 72 години.",
+                getString(R.string.guard_toast),
                 Toast.LENGTH_LONG
             ).show()
         }

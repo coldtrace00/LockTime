@@ -1,197 +1,176 @@
 # LockTime
 
-**Простий, надійний і повністю відкритий блокувальник часу в додатках для Android.**
+**A simple, reliable and fully open-source app time limiter for Android.**
+The interface is in English and Ukrainian (follows the phone's language).
 
-Обираєте додатки (Instagram, TikTok, YouTube…), ставите денний ліміт — наприклад,
-1 година — і коли час вийшов, додаток просто не відкривається до опівночі.
-Жодних паролів, кнопок «ще 5 хвилин» чи «ігнорувати сьогодні».
+Pick apps (Instagram, TikTok, YouTube…), set a daily limit — say, 1 hour — and
+once it's used up, the app simply won't open until midnight.
+No passwords, no "5 more minutes", no "ignore for today".
 
-[**⬇ Завантажити LockTime.apk**](https://github.com/coldtrace00/LockTime/releases/latest/download/LockTime.apk)
+[**⬇ Download LockTime.apk**](https://github.com/coldtrace00/LockTime/releases/latest/download/LockTime.apk)
 
-*English summary is [at the bottom](#english).*
+[Українська](README.uk.md) · **English**
 
 ---
 
-## Принципи
+## Principles
 
-- **Без інтернету.** У додатку немає дозволу `INTERNET`, тож Android фізично
-  не дає йому щось надіслати. Немає акаунтів, сервера, реклами, аналітики.
-- **Без сторонніх бібліотек.** Лише Android SDK і Kotlin. Увесь код — кілька
-  файлів, його реально прочитати повністю.
-- **Дані лише на телефоні.** Ліміти зберігаються в пам'яті пристрою, резервне
-  копіювання в хмару вимкнене (`allowBackup="false"`).
-- **Чесно про обмеження.** Що можна обійти — описано [нижче](#чесно-про-обмеження).
+- **No internet.** The app has no `INTERNET` permission, so Android physically
+  won't let it send anything. No accounts, no server, no ads, no analytics.
+- **No third-party libraries.** Just the Android SDK and Kotlin. The whole code
+  base is a handful of files you can actually read end to end.
+- **Data stays on the phone.** Limits are stored on the device; cloud backup is
+  disabled (`allowBackup="false"`).
+- **Honest about limitations.** What can be bypassed is described [below](#honest-limitations).
 
-## Можливості
+## Features
 
-| Функція | Як працює |
+| Feature | How it works |
 |---|---|
-| Денний ліміт | Окремий для кожного додатка. Швидкі кнопки: 5, 10, 15, 30, 45 хв, 1 год. Обнуляється опівночі. |
-| Ліміт на вихідні | За бажанням — інший ліміт на суботу й неділю. |
-| Ліміт відкриттів | Наприклад, Instagram — не більше 10 разів на день. Проти звички «просто глянути». |
-| Нічний режим | Додатки з позначкою «вночі» повністю блокуються у вибрані години (типово 23:00–07:00). |
-| Блок сайтів | Коли додаток заблоковано, його сайт у браузері (instagram.com, tiktok.com, youtube.com…) теж закривається. |
-| Блокування | Повернення на головний екран і екран з причиною блоку. Перевірка кожні 3 с, тож блок спрацює навіть посеред стрічки. |
-| Попередження | Сповіщення за 15, 10 і 5 хв до кінця ліміту, кожне — раз на день. |
-| Статистика | Скільки часу пішло в кожен додаток за останні 7 днів. |
-| «Посилити — одразу, послабити — завтра» | Діє для всіх налаштувань: лімітів, відкриттів, нічного режиму та його годин. |
-| Захист від видалення | Необов'язковий. Поки увімкнений — LockTime не можна видалити, примусово зупинити чи вимкнути його службу. |
-| Зняття захисту — через 72 год | Після запиту додаток показує дату й час, коли захист буде знято. Переведення годинника не допомагає. |
+| Daily limit | Per app. Quick buttons: 5, 10, 15, 30, 45 min, 1 h. Resets at midnight. |
+| Weekend limit | Optionally a different limit for Saturday and Sunday. |
+| Open limit | E.g. Instagram no more than 10 times a day. Fights the "just a quick look" habit. |
+| Night mode | Apps marked "at night" are fully blocked during chosen hours (default 23:00–07:00). |
+| Website blocking | When an app is blocked, its website in the browser (instagram.com, tiktok.com, youtube.com…) is closed too. |
+| Blocking | Back to the home screen plus a screen explaining why. Checked every 3 s, so it kicks in even mid-scroll. |
+| Warnings | Notifications 15, 10 and 5 min before the limit runs out, each once a day. |
+| Statistics | How much time went into each app over the last 7 days. |
+| "Tighten now, loosen tomorrow" | Applies to every setting: time limits, opens, night mode and its hours. |
+| Uninstall protection | Optional. While on, LockTime can't be uninstalled, force-stopped, or have its service disabled. |
+| Removing protection takes 72 h | After the request, the app shows the date and time protection will be lifted. Changing the clock doesn't help. |
 
-## Встановлення
+## Installation
 
-1. На телефоні відкрийте посилання
+1. On the phone, open
    [LockTime.apk](https://github.com/coldtrace00/LockTime/releases/latest/download/LockTime.apk)
-   і встановіть файл (дозвольте встановлення з браузера; на попередження
-   Play Protect — «Усе одно встановити»).
-2. Відкрийте LockTime і надайте дозволи вгорі екрана:
+   and install it (allow installs from the browser; on a Play Protect warning
+   choose "Install anyway").
+2. Open LockTime and grant the permissions at the top of the screen:
 
-   | Дозвіл | Навіщо |
+   | Permission | Why |
    |---|---|
-   | Статистика використання | Знати, скільки часу сьогодні провели в кожному додатку |
-   | Служба спеціальних можливостей | Помічати, який додаток відкрито, і закривати його |
-   | Сповіщення | Попередження «залишилось 15 / 10 / 5 хв» |
-   | Без оптимізації батареї | Щоб система не «присипляла» LockTime |
+   | Usage access | To know how much time you spent in each app today |
+   | Accessibility service | To notice which app is open and close it |
+   | Notifications | For "15 / 10 / 5 min left" warnings |
+   | No battery optimization | So the system doesn't put LockTime to sleep |
 
-   > **Samsung / Android 13+:** якщо перемикач служби сірий («Обмежене
-   > налаштування») — Налаштування → Програми → LockTime → ⋮ (угорі праворуч) →
-   > **Дозволити обмежені налаштування**, і ввімкніть службу ще раз.
+   > **Android 13+:** if the service switch is greyed out ("Restricted setting"),
+   > go to Settings → Apps → LockTime → ⋮ (top right) →
+   > **Allow restricted settings**, then turn the service on again.
 
-3. Торкніться потрібного додатка у списку і задайте ліміти: хвилини в будні
-   й вихідні, кількість відкриттів, блок уночі. Порожнє поле — без обмеження.
-4. Для тесту зручно поставити ліміт 1 хв. Коли переконаєтесь, що все працює, —
-   за бажанням увімкніть захист від видалення.
+3. Tap an app in the list and set limits: minutes on weekdays and weekends,
+   number of opens, block at night. An empty field means no limit.
+4. For a test, a 1-minute limit is handy. Once you're sure everything works,
+   turn on uninstall protection if you want.
 
-### Як видалити LockTime, якщо увімкнено захист
+### Uninstalling LockTime when protection is on
 
-1. Відкрийте LockTime і вимкніть перемикач «Захист від видалення».
-2. Додаток покаже, коли захист буде знято (через 72 години).
-3. Після цього видаліть LockTime як звичайний додаток.
+1. Open LockTime and turn off the "Uninstall protection" switch.
+2. The app shows when protection will be removed (in 72 hours).
+3. After that, uninstall LockTime like any other app.
 
-Аварійний вихід є завжди — [безпечний режим](#чесно-про-обмеження).
+There is always an emergency exit — [safe mode](#honest-limitations).
 
-## Як це влаштовано
+## How it works
 
 ```
-┌────────────────────┐    подія «відкрито вікно»    ┌──────────────────┐
+┌────────────────────┐   "window opened" event      ┌──────────────────┐
 │ Android            │ ───────────────────────────▶ │ LimitService     │
-│ (спец. можливості) │      + таймер кожні 3 с      │                  │
-└────────────────────┘                              │ 1. який додаток? │
-                                                    │ 2. є ліміт?      │
-┌────────────────────┐   скільки часу сьогодні?     │ 3. скільки вже?  │
+│ (accessibility)    │    + timer every 3 s         │                  │
+└────────────────────┘                              │ 1. which app?    │
+                                                    │ 2. any rule?     │
+┌────────────────────┐   how much time today?       │ 3. used so far?  │
 │ UsageStatsManager  │ ◀─────────────────────────── │                  │
 └────────────────────┘                              └───┬──────────┬───┘
                                                         │          │
-                       час / відкриття / ніч    │          │ залишилось ≤15/10/5 хв
+                                time / opens / night    │          │ ≤15/10/5 min left
                                                         ▼          ▼
-                                              BlockActivity    сповіщення
-                                              (+ кнопка Home)
+                                              BlockActivity    notification
+                                              (+ Home button)
 ```
 
-| Файл | Що робить |
+| File | What it does |
 |---|---|
-| [`LimitService.kt`](app/src/main/java/io/github/timelock/LimitService.kt) | Служба спеціальних можливостей. Отримує від Android події «на екрані інший додаток», раз на 3 с перевіряє поточний додаток, блокує (час, відкриття, ніч), читає адресний рядок браузерів, надсилає попередження, а при увімкненому захисті закриває екрани налаштувань, де згадується LockTime. |
-| [`UsageTracker.kt`](app/src/main/java/io/github/timelock/UsageTracker.kt) | Рахує час на екрані й кількість відкриттів від опівночі за системними подіями `UsageEvents`, а також суму за 7 днів для статистики. |
-| [`Prefs.kt`](app/src/main/java/io/github/timelock/Prefs.kt) | Правила додатків (`Rule`), нічне вікно (`NightWindow`), правило «посилити — одразу, послабити — завтра» і 72-годинний відлік зняття захисту. |
-| [`MainActivity.kt`](app/src/main/java/io/github/timelock/MainActivity.kt) | Головний екран: дозволи, захист, нічний режим, список додатків і діалог правил. |
-| [`StatsActivity.kt`](app/src/main/java/io/github/timelock/StatsActivity.kt) | Статистика за тиждень. |
-| [`BlockActivity.kt`](app/src/main/java/io/github/timelock/BlockActivity.kt) | Екран «Час на сьогодні вийшов». |
-| [`AndroidManifest.xml`](app/src/main/AndroidManifest.xml) | Повний список дозволів — можна переконатися, що інтернету немає. |
+| [`LimitService.kt`](app/src/main/java/io/github/timelock/LimitService.kt) | The accessibility service. Receives "another app is on screen" events from Android, checks the current app every 3 s, blocks (time, opens, night), reads browser address bars, sends warnings, and with protection on closes settings screens that mention LockTime. |
+| [`UsageTracker.kt`](app/src/main/java/io/github/timelock/UsageTracker.kt) | Counts screen time and opens since midnight from system `UsageEvents`, plus 7-day totals for statistics. |
+| [`Prefs.kt`](app/src/main/java/io/github/timelock/Prefs.kt) | App rules (`Rule`), the night window (`NightWindow`), the "tighten now, loosen tomorrow" logic and the 72-hour protection countdown. |
+| [`MainActivity.kt`](app/src/main/java/io/github/timelock/MainActivity.kt) | Main screen: permissions, protection, night mode, app list and the rules dialog. |
+| [`StatsActivity.kt`](app/src/main/java/io/github/timelock/StatsActivity.kt) | Weekly statistics. |
+| [`BlockActivity.kt`](app/src/main/java/io/github/timelock/BlockActivity.kt) | Block screen with the reason (time, opens, night). |
+| [`res/values*/strings.xml`](app/src/main/res/) | UI texts: `values` — English, `values-uk` — Ukrainian. |
+| [`AndroidManifest.xml`](app/src/main/AndroidManifest.xml) | The full list of permissions — you can verify there's no internet access. |
 
-### Подробиці
+### Details
 
-- **Підрахунок часу.** Android веде журнал подій «додаток відкрито / згорнуто».
-  LockTime проходить цим журналом від опівночі й сумує інтервали. Якщо
-  відкривається інший додаток або гасне екран — поточний інтервал закривається.
-- **Відкриття.** Відкриттям вважається перехід у додаток з іншого додатка чи з
-  вимкненого екрана. Переходи між екранами всередині додатка не рахуються.
-  Коли відкриттів стало більше за ліміт, додаток закривається.
-- **«Посилити — одразу, послабити — завтра».** Нове правило порівнюється з чинним
-  поле за полем. Суворіші поля діють одразу, а повне нове правило — з наступного
-  дня. Нічне вікно: ширше — одразу, вужче чи зсунуте — з завтра.
-- **Сайти.** У відомих браузерах (Chrome, Samsung Internet, Firefox, Edge, Brave,
-  Opera, Vivaldi, DuckDuckGo) служба читає адресний рядок. Якщо відкрито сайт
-  додатка, який зараз заблоковано, браузер закривається так само. Список сайтів —
-  `SITES` у `LimitService.kt`.
-- **Блокування.** Коли час вийшов, служба натискає «Додому» і показує екран
-  блокування. Якщо додаток знову відкрити, він закриється протягом ~3 с.
-- **72-годинний відлік.** Іде не за годинником телефона, а за
-  `SystemClock.elapsedRealtime()` — внутрішнім секундоміром Android, який не
-  можна змінити в налаштуваннях. Після перезавантаження секундомір обнуляється,
-  тому час, коли телефон був вимкнений, не зараховується — дата зняття
-  зсувається на цей період.
-- **Захист від видалення.** Коли відкрито налаштування, інсталятор чи Play Market,
-  служба шукає на екрані текст «LockTime». Якщо знаходить — натискає «Назад»
-  і «Додому». Тому сторінки видалення, примусової зупинки та вимкнення служби
-  відкрити не вдасться. Побічний ефект: може закриватися й загальний список
-  програм, коли в ньому видно рядок LockTime.
+- **Time tracking.** Android keeps a log of "app opened / moved to background"
+  events. LockTime walks that log from midnight and sums the intervals. When
+  another app opens or the screen turns off, the current interval closes.
+- **Opens.** An open is switching into the app from another app or from a
+  turned-off screen. Moving between screens inside the app doesn't count.
+  Once opens exceed the limit, the app is closed.
+- **"Tighten now, loosen tomorrow".** A new rule is compared with the current one
+  field by field. Stricter fields apply immediately; the full new rule applies
+  the next day. Night window: wider applies now, narrower or shifted — tomorrow.
+- **Websites.** In known browsers (Chrome, Firefox, Edge, Brave, Opera, Vivaldi,
+  DuckDuckGo and the phone's built-in browser) the service reads the address bar.
+  If the site of a currently blocked app is open, the browser is closed the same
+  way. The site list is `SITES` in `LimitService.kt`.
+- **Blocking.** When time is up, the service presses "Home" and shows the block
+  screen. If the app is opened again, it closes within ~3 s.
+- **72-hour countdown.** It runs not on the phone's clock but on
+  `SystemClock.elapsedRealtime()` — Android's internal stopwatch, which can't be
+  changed in settings. The stopwatch resets on reboot, so time while the phone
+  is off isn't counted, and the removal date shifts by that amount.
+- **Uninstall protection.** When settings, the package installer or Play Store
+  is open, the service looks for the text "LockTime" on screen. If found, it
+  presses "Back" and "Home". So the uninstall, force-stop and service-disable
+  pages can't be opened. Side effect: the general app list may also close while
+  the LockTime row is visible in it.
+- **Languages.** All texts live in string resources. Android picks Ukrainian if
+  the phone's language is Ukrainian, and English otherwise.
 
-## Чесно про обмеження
+## Honest limitations
 
-На Android будь-який блокувальник можна обійти, бо система дає власнику телефона
-повний контроль. LockTime не робить обхід неможливим — він робить його довгим
-і незручним, а в момент спокуси цього зазвичай досить.
+Any blocker on Android can be bypassed, because the system gives the phone's
+owner full control. LockTime doesn't make bypassing impossible — it makes it
+slow and inconvenient, which is usually enough in a moment of temptation.
 
-- **Безпечний режим** (утримати кнопку живлення → утримати «Вимкнути»): сторонні
-  додатки не працюють, LockTime можна видалити. Це навмисний аварійний вихід
-  Android, його не заблокує жоден додаток.
-- **Зміна дати в налаштуваннях** не скорочує 72 години, але **впливає на денні
-  ліміти**: якщо перевести дату на завтра, «новий день» почнеться раніше.
-  Тримайте автоматичну дату й час.
-- **Браузер:** сайт блокується лише тоді, коли заблоковано сам додаток, і лише
-  для сайтів зі списку. Час у браузері не зараховується до ліміту додатка.
-  Невідомі браузери не перевіряються.
-- **Інший профіль / Secure Folder:** копії додатків у «Захищеній папці» Samsung
-  чи подвійних месенджерах — окремі додатки; на них теж треба поставити ліміт.
+- **Safe mode** (hold the power button → hold "Power off"): third-party apps
+  don't run and LockTime can be uninstalled. This is Android's deliberate
+  emergency exit; no app can block it.
+- **Changing the date in settings** doesn't shorten the 72 hours, but **does
+  affect daily limits**: set the date to tomorrow and the "new day" starts early.
+  Keep automatic date and time on.
+- **Browser:** a site is blocked only while the app itself is blocked, and only
+  for sites on the list. Browser time doesn't count toward the app's limit.
+  Unknown browsers aren't checked.
+- **Other profiles / secure folders:** copies of apps in a secure folder, work
+  profile or "dual apps" are separate apps; they need their own limits.
 
-## Збірка з коду
+## Building from source
 
-**Автоматично.** Кожен push у `main` збирає APK у GitHub Actions і публікує його
-у вкладці **Releases**.
+**Automatically.** Every push to `main` builds the APK in GitHub Actions and
+publishes it under **Releases**.
 
-**Постійний ключ підпису.** Щоб нові версії ставилися поверх старих (а з
-увімкненим захистом видалити стару версію не можна), APK треба підписувати
-завжди одним ключем. Додайте в репозиторій два секрети
+**Permanent signing key.** For new versions to install over old ones (and with
+protection on, the old version can't be uninstalled), the APK must always be
+signed with the same key. Add two repository secrets
 (Settings → Secrets and variables → Actions → New repository secret):
 
-| Секрет | Значення |
+| Secret | Value |
 |---|---|
-| `KEYSTORE_BASE64` | файл ключа `.jks`, закодований у base64 |
-| `KEYSTORE_PASSWORD` | пароль ключа (alias — `locktime`) |
+| `KEYSTORE_BASE64` | the `.jks` key file, base64-encoded |
+| `KEYSTORE_PASSWORD` | the key password (alias — `locktime`) |
 
-Без секретів збірка все одно пройде, але з тимчасовим ключем.
+Without the secrets the build still succeeds, but with a temporary key.
 
-**Локально** (потрібен Android SDK або Android Studio):
+**Locally** (requires the Android SDK or Android Studio):
 
 ```bash
 ./gradlew assembleRelease
-# результат: app/build/outputs/apk/release/app-release.apk
+# output: app/build/outputs/apk/release/app-release.apk
 ```
 
-## Ліцензія
+## License
 
-[MIT](LICENSE) — використовуйте, змінюйте й поширюйте вільно.
-
----
-
-## English
-
-**LockTime** is a minimal, fully open-source app-time limiter for Android.
-Pick apps, set a daily limit (e.g. 1 hour), and once it's used up the app
-won't open until midnight. No passwords, no "5 more minutes".
-
-- **No internet permission** at all, no accounts, no ads, no analytics,
-  no third-party libraries — just the Android SDK and Kotlin.
-- Weekday/weekend limits, max opens per day, night mode, weekly stats.
-- When an app is blocked, its website in common browsers is blocked too.
-- Warnings 15, 10 and 5 minutes before the limit runs out.
-- Any rule can be tightened immediately; loosening takes effect the next day.
-- Optional uninstall protection; turning it off takes 72 hours, counted on a
-  monotonic clock, so changing the phone's date doesn't help.
-- How it works: an accessibility service watches which app is in the foreground,
-  `UsageStatsManager` provides today's usage, and the app is sent home when the
-  limit is reached. See the table in [Як це влаштовано](#як-це-влаштовано)
-  for a per-file overview.
-
-Download: [LockTime.apk](https://github.com/coldtrace00/LockTime/releases/latest/download/LockTime.apk) ·
-License: MIT
+[MIT](LICENSE) — use, modify and share freely.

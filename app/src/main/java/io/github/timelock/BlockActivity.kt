@@ -16,7 +16,7 @@ class BlockActivity : Activity() {
         super.onCreate(savedInstanceState)
 
         val pkg = intent.getStringExtra(EXTRA_PACKAGE)
-        val label = pkg?.let { appLabel(it) } ?: "цей додаток"
+        val label = pkg?.let { appLabel(it) } ?: getString(R.string.this_app)
         val reason = intent.getStringExtra(EXTRA_REASON)
         val viaBrowser = intent.getBooleanExtra(EXTRA_BROWSER, false)
         val prefs = Prefs(this)
@@ -27,8 +27,11 @@ class BlockActivity : Activity() {
                 val w = prefs.nightWindow()
                 Triple(
                     "🌙",
-                    "Нічний режим",
-                    "«$label» недоступний з ${MainActivity.formatTime(w.start)} до ${MainActivity.formatTime(w.end)}."
+                    getString(R.string.block_night_title),
+                    getString(
+                        R.string.block_night_body, label,
+                        MainActivity.formatTime(w.start), MainActivity.formatTime(w.end)
+                    )
                 )
             }
             LimitService.Reason.OPENS.name -> {
@@ -36,21 +39,21 @@ class BlockActivity : Activity() {
                 val limitText = if (n != null) " ($n)" else ""
                 Triple(
                     "🚪",
-                    "Відкриття на сьогодні вичерпано",
-                    "Ліміт відкриттів «$label»$limitText вичерпано.\nДоступ відновиться опівночі."
+                    getString(R.string.block_opens_title),
+                    getString(R.string.block_opens_body, label, limitText)
                 )
             }
             else -> {
                 val minutes = rule?.minutesFor(java.time.LocalDate.now())
-                val limitText = if (minutes != null) " (${MainActivity.formatMinutes(minutes)})" else ""
+                val limitText = if (minutes != null) " (${MainActivity.formatMinutes(this, minutes)})" else ""
                 Triple(
                     "⏳",
-                    "Час на сьогодні вийшов",
-                    "Денний ліміт для «$label»$limitText вичерпано.\nДоступ відновиться опівночі."
+                    getString(R.string.block_time_title),
+                    getString(R.string.block_time_body, label, limitText)
                 )
             }
         }
-        val fullBody = if (viaBrowser) "$body\n\nСайт у браузері заблоковано разом із додатком." else body
+        val fullBody = if (viaBrowser) "$body\n\n" + getString(R.string.block_site_note) else body
 
         val density = resources.displayMetrics.density
         fun dp(v: Int) = (v * density).toInt()
@@ -85,7 +88,7 @@ class BlockActivity : Activity() {
         })
 
         root.addView(Button(this).apply {
-            text = "Зрозуміло"
+            text = getString(R.string.btn_got_it)
             setOnClickListener { goHome() }
         })
 
