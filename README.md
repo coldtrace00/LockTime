@@ -28,12 +28,14 @@ No passwords, no "5 more minutes", no "ignore for today".
 | Feature | How it works |
 |---|---|
 | Daily limit | Per app. Quick buttons: 5, 10, 15, 30, 45 min, 1 h. Resets at midnight. |
-| Weekend limit | Optionally a different limit for Saturday and Sunday. |
+| Weekend / per-day limits | A different limit for Saturday and Sunday, or a separate limit for each day of the week. |
 | Open limit | E.g. Instagram no more than 10 times a day. Fights the "just a quick look" habit. |
 | Night mode | Apps marked "at night" are fully blocked during hours you choose — tap "From" or "To" to set them (default 23:00–07:00). |
 | Website blocking | When an app is blocked, its website in the browser (instagram.com, tiktok.com, youtube.com…) is closed too. |
 | Blocking | Back to the home screen plus a screen explaining why. Checked every 3 s, so it kicks in even mid-scroll. |
-| Warnings | Notifications 15, 10 and 5 min before the limit runs out, each once a day. |
+| Warnings | Notifications 15, 10 and 5 min before the time limit runs out, and when 2 opens are left / on the last allowed open. Each once a day. |
+| Evening summary | One notification at a time you choose (default 21:00): time and opens in apps with limits today. |
+| Widget | Home-screen widget showing time and opens left today. Tap to open LockTime. |
 | Statistics | How much time went into each app over the last 7 days. |
 | Appearance | Light, dark or auto theme (follows the phone); UA \| EN language switch. |
 | "Tighten now, loosen tomorrow" | Applies to every setting: time limits, opens, night mode and its hours. |
@@ -97,6 +99,7 @@ There is always an emergency exit — [safe mode](#honest-limitations).
 | [`Prefs.kt`](app/src/main/java/io/github/timelock/Prefs.kt) | App rules (`Rule`), the night window (`NightWindow`), the "tighten now, loosen tomorrow" logic and the 72-hour protection countdown. |
 | [`MainActivity.kt`](app/src/main/java/io/github/timelock/MainActivity.kt) | Main screen: permissions, protection, night mode, app list and the rules dialog. |
 | [`StatsActivity.kt`](app/src/main/java/io/github/timelock/StatsActivity.kt) | Weekly statistics. |
+| [`LimitWidget.kt`](app/src/main/java/io/github/timelock/LimitWidget.kt) | Home-screen widget. |
 | [`BlockActivity.kt`](app/src/main/java/io/github/timelock/BlockActivity.kt) | Block screen with the reason (time, opens, night). |
 | [`Lang.kt`](app/src/main/java/io/github/timelock/Lang.kt) | Interface language: Ukrainian by default, switchable to English. |
 | [`Look.kt`](app/src/main/java/io/github/timelock/Look.kt) | Theme (auto / light / dark) and the colors for each. |
@@ -133,6 +136,18 @@ There is always an emergency exit — [safe mode](#honest-limitations).
   regardless of the phone's language; the UA | EN switch at the top of the
   main screen changes it (`Lang.kt`). The theme switch next to it picks light,
   dark or auto (`Look.kt`).
+
+## Where data is stored
+
+LockTime **doesn't store any usage history of its own**. Time and opens are
+calculated on the fly from Android's built-in usage log (`UsageStatsManager`) —
+the same log the system keeps anyway for Digital Wellbeing and battery stats.
+Android manages its size and retention itself: detailed events are kept for about
+a week, daily totals longer; it's a few megabytes, not gigabytes.
+
+LockTime's own data is only its settings (rules, night window, theme, language) —
+a few kilobytes in the app's private storage, removed together with the app.
+Nothing leaves the phone.
 
 ## Honest limitations
 
