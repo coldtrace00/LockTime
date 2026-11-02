@@ -8,6 +8,11 @@
         tools:ignore="ProtectedPermissions" />
     <!-- Щоб Samsung не «присипляв» блокувальник -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- Перевірка оновлень на GitHub — лише якщо користувач дозволив у налаштуваннях.
+         Вимкнено — жодних запитів у мережу (див. Updater.kt). -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Встановлення завантаженого оновлення LockTime -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- Попередження «залишилось 15 / 10 / 5 хв» -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 

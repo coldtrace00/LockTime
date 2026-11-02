@@ -362,6 +362,15 @@ class LimitService : AccessibilityService() {
         val hits = root.findAccessibilityNodeInfosByText(loc().getString(R.string.app_name))
         if (hits.isNullOrEmpty()) return
 
+        // Під час оновлення, яке запустив сам LockTime, вікно інсталятора не закриваємо —
+        // але лише якщо це не вікно видалення.
+        if (pkg in INSTALLER_PACKAGES && Updater.installWindowOpen(this)) {
+            val uninstall = UNINSTALL_WORDS.any { w ->
+                !root.findAccessibilityNodeInfosByText(w).isNullOrEmpty()
+            }
+            if (!uninstall) return
+        }
+
         performGlobalAction(GLOBAL_ACTION_BACK)
         handler.postDelayed({ performGlobalAction(GLOBAL_ACTION_HOME) }, 150)
         if (now - lastBlockAt > 3000) {
@@ -389,6 +398,15 @@ class LimitService : AccessibilityService() {
             "com.samsung.android.packageinstaller",
             "com.android.vending"
         )
+
+        private val INSTALLER_PACKAGES = setOf(
+            "com.android.packageinstaller",
+            "com.google.android.packageinstaller",
+            "com.samsung.android.packageinstaller"
+        )
+
+        /** Слова, за якими впізнаємо вікно видалення (різними мовами). */
+        private val UNINSTALL_WORDS = listOf("uninstall", "видалити", "удалить", "deinstall", "désinstaller")
 
         /** Браузер -> id поля адресного рядка. */
         private val BROWSER_URL_BARS = mapOf(

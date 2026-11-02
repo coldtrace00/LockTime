@@ -47,6 +47,16 @@ object Look {
     fun chip(c: Context) = if (isDark(c)) 0xFF2A2D35.toInt() else 0xFFE6E9F0.toInt()
     fun barEmpty(c: Context) = if (isDark(c)) 0xFF2A2D35.toInt() else 0xFFE6E9F0.toInt()
 
+    fun bg(c: Context) = if (isDark(c)) 0xFF121316.toInt() else 0xFFFAFAFC.toInt()
+    fun navBg(c: Context) = if (isDark(c)) 0xFF1A1C21.toInt() else 0xFFFFFFFF.toInt()
+    fun divider(c: Context) = if (isDark(c)) 0xFF262931.toInt() else 0xFFECEEF3.toInt()
+    fun accentSoft(c: Context) = if (isDark(c)) 0xFF2B3150.toInt() else 0xFFE3E7F8.toInt()
+
+    /** Тема без верхньої панелі — для головного екрана з власними заголовками. */
+    fun themeResNoBar(context: Context): Int =
+        if (isDark(context)) android.R.style.Theme_Material_NoActionBar
+        else android.R.style.Theme_Material_Light_NoActionBar
+
     fun rounded(color: Int, radiusPx: Float) = GradientDrawable().apply {
         setColor(color)
         cornerRadius = radiusPx

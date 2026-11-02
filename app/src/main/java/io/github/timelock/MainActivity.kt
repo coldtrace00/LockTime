@@ -9,67 +9,57 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.RectF
 import android.graphics.Typeface
-import android.graphics.drawable.Drawable
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.os.PowerManager
 import android.os.Process
 import android.provider.Settings
 import android.text.Editable
+import android.text.InputType
 import android.text.SpannableStringBuilder
 import android.text.Spanned
-import android.text.style.ForegroundColorSpan
-import android.text.InputType
 import android.text.TextWatcher
+import android.text.style.ForegroundColorSpan
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
-import android.widget.BaseAdapter
 import android.widget.CheckBox
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
 import android.widget.ImageView
 import android.widget.LinearLayout
-import android.widget.ListView
 import android.widget.ScrollView
 import android.widget.Switch
 import android.widget.TextView
 import android.widget.Toast
 import java.time.LocalDate
 
+/**
+ * Головний екран з трьома вкладками:
+ *  «Сьогодні» — скільки лишилось, «Ліміти» — правила, «Налаштування» — усе інше.
+ */
 class MainActivity : Activity() {
 
     private lateinit var prefs: Prefs
-    private lateinit var listView: ListView
-    private lateinit var adapter: AppAdapter
+    private lateinit var content: FrameLayout
+    private lateinit var nav: LinearLayout
 
-    private lateinit var permRows: LinearLayout
-    private lateinit var permAllOk: TextView
-    private lateinit var usageStatus: TextView
-    private lateinit var usageButton: TextView
-    private lateinit var a11yStatus: TextView
-    private lateinit var a11yButton: TextView
-    private lateinit var notifStatus: TextView
-    private lateinit var notifButton: TextView
-    private lateinit var batteryStatus: TextView
-    private lateinit var batteryButton: TextView
-    private lateinit var protectionSwitch: Switch
-    private lateinit var protectionNote: TextView
-    private lateinit var loadingText: TextView
-    private lateinit var emptyText: TextView
-    private lateinit var nightFromButton: TextView
-    private lateinit var nightToButton: TextView
-    private lateinit var nightText: TextView
-    private lateinit var summarySwitch: Switch
-    private lateinit var summaryTimeButton: TextView
-
+    private var tab = TAB_TODAY
     private var allApps: List<AppItem> = emptyList()
     private var appsLoaded = false
-    /** На головному екрані — лише додатки з лімітами. */
-    private var apps: List<AppItem> = emptyList()
-    private var usage: Map<String, AppUsage> = emptyMap()
+
+    /** Стан перевірки оновлень, поки екран відкритий. */
+    private var updateState: String? = null
+    private var updateRelease: Updater.Release? = null
+    private val ui = Handler(Looper.getMainLooper())
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
     private fun dpf(v: Int) = v * resources.displayMetrics.density
@@ -79,26 +69,385 @@ class MainActivity : Activity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        setTheme(Look.themeRes(this))
+        setTheme(Look.themeResNoBar(this))
         super.onCreate(savedInstanceState)
         prefs = Prefs(this)
+        tab = savedInstanceState?.getInt(KEY_TAB, TAB_TODAY) ?: TAB_TODAY
 
-        val header = LinearLayout(this).apply {
+        styleSystemBars()
+        content = FrameLayout(this)
+        nav = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setBackgroundColor(Look.navBg(this@MainActivity))
+            setPadding(0, dp(6), 0, dp(8))
+        }
+        setContentView(LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(8), dp(16), dp(8))
+            setBackgroundColor(Look.bg(this@MainActivity))
+            addView(content, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+            addView(View(this@MainActivity).apply { setBackgroundColor(Look.divider(this@MainActivity)) },
+                LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 1))
+            addView(nav)
+        })
+
+        Thread {
+            val items = Apps.loadLaunchable(this)
+            runOnUiThread {
+                allApps = items
+                appsLoaded = true
+                render()
+            }
+        }.start()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putInt(KEY_TAB, tab)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        render()
+    }
+
+    @Suppress("DEPRECATION")
+    private fun styleSystemBars() {
+        window.statusBarColor = Look.bg(this)
+        window.navigationBarColor = Look.navBg(this)
+        if (!Look.isDark(this)) {
+            window.decorView.systemUiVisibility =
+                View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+        }
+    }
+
+    // =====================================================================
+    // Навігація
+    // =====================================================================
+
+    private fun render() {
+        renderNav()
+        content.removeAllViews()
+        val page = when (tab) {
+            TAB_LIMITS -> limitsPage()
+            TAB_SETTINGS -> settingsPage()
+            else -> todayPage()
+        }
+        content.addView(ScrollView(this).apply {
+            isFillViewport = true
+            addView(page)
+        })
+    }
+
+    private fun showTab(t: Int) {
+        if (t == tab) return
+        tab = t
+        render()
+    }
+
+    private fun renderNav() {
+        nav.removeAllViews()
+        val items = listOf(
+            Triple(TAB_TODAY, R.drawable.ic_tab_today, R.string.tab_today),
+            Triple(TAB_LIMITS, R.drawable.ic_tab_limits, R.string.tab_limits),
+            Triple(TAB_SETTINGS, R.drawable.ic_tab_settings, R.string.tab_settings)
+        )
+        for ((t, icon, label) in items) {
+            val on = t == tab
+            val color = if (on) Look.accentText(this) else Look.muted(this)
+            nav.addView(LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER_HORIZONTAL
+                addView(ImageView(this@MainActivity).apply {
+                    setImageResource(icon)
+                    setColorFilter(color)
+                    if (on) background = Look.rounded(Look.accentSoft(this@MainActivity), dpf(14))
+                    setPadding(dp(18), dp(4), dp(18), dp(4))
+                }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(30)))
+                addView(TextView(this@MainActivity).apply {
+                    text = getString(label)
+                    textSize = 12f
+                    setTextColor(color)
+                    if (on) setTypeface(typeface, Typeface.BOLD)
+                    setPadding(0, dp(3), 0, 0)
+                })
+                setOnClickListener { showTab(t) }
+            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        }
+    }
+
+    // =====================================================================
+    // Вкладка «Сьогодні»
+    // =====================================================================
+
+    private fun todayPage(): View {
+        val page = pageLayout(getString(R.string.tab_today))
+        val rules = prefs.rules()
+
+        if (!allPermissionsOk()) {
+            page.addView(card().apply {
+                background = Look.rounded(Look.accentSoft(this@MainActivity), dpf(16))
+                addView(TextView(this@MainActivity).apply {
+                    text = getString(R.string.perm_warning_title)
+                    textSize = 15f
+                    setTypeface(typeface, Typeface.BOLD)
+                    setTextColor(Look.text(this@MainActivity))
+                })
+                addView(TextView(this@MainActivity).apply {
+                    text = getString(R.string.perm_warning_text)
+                    textSize = 13f
+                    setTextColor(Look.accentText(this@MainActivity))
+                    setPadding(0, dp(4), 0, 0)
+                })
+                setOnClickListener { showTab(TAB_SETTINGS) }
+            }, blockParams())
         }
 
-        // ---- Вигляд: мова і тема ----
-        header.addView(card().apply {
-            addView(settingRow(
-                getString(R.string.label_language),
+        if (rules.isEmpty()) {
+            page.addView(emptyState(), blockParams())
+            return page
+        }
+
+        val usage = if (hasUsageAccess()) UsageTracker.usageToday(this, rules.keys, null) else emptyMap()
+        val today = LocalDate.now()
+
+        // Кільце: використаний час / сума денних лімітів (лише для додатків з лімітом часу).
+        var usedMs = 0L
+        var limitMs = 0L
+        for ((pkg, rule) in rules) {
+            val u = usage[pkg]?.timeMs ?: 0L
+            usedMs += u
+            rule.minutesFor(today)?.let { limitMs += it * 60_000L }
+        }
+        page.addView(FrameLayout(this).apply {
+            val size = dp(170)
+            addView(RingView(this@MainActivity,
+                if (limitMs > 0) (usedMs.toFloat() / limitMs).coerceIn(0f, 1f) else 0f,
+                if (limitMs > 0 && usedMs >= limitMs) Look.danger(this@MainActivity) else Look.ACCENT_FILL,
+                Look.barEmpty(this@MainActivity)
+            ), FrameLayout.LayoutParams(size, size, Gravity.CENTER))
+            addView(LinearLayout(this@MainActivity).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                addView(TextView(this@MainActivity).apply {
+                    text = formatMinutes(this@MainActivity, (usedMs / 60_000L).toInt())
+                    textSize = 24f
+                    setTypeface(typeface, Typeface.BOLD)
+                    setTextColor(Look.text(this@MainActivity))
+                    gravity = Gravity.CENTER
+                })
+                addView(mutedText(13f).apply {
+                    text = if (limitMs > 0)
+                        getString(R.string.today_of_limit, formatMinutes(this@MainActivity, (limitMs / 60_000L).toInt()))
+                    else getString(R.string.today_total)
+                    gravity = Gravity.CENTER
+                })
+            }, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER))
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(190)))
+
+        // Рядки по додатках.
+        val night = prefs.nightWindow()
+        val nightNow = night.coversNow()
+        val list = card()
+        for (app in appsWithRules()) {
+            val rule = rules[app.pkg] ?: continue
+            val u = usage[app.pkg] ?: AppUsage()
+            val limit = rule.minutesFor(today)
+            val maxOpens = rule.opens
+            val (status, blocked) = when {
+                rule.night && nightNow -> getString(R.string.today_night) to true
+                maxOpens != null && u.opens >= maxOpens -> getString(R.string.today_opens_out) to true
+                limit != null && u.timeMs >= limit * 60_000L -> getString(R.string.today_blocked) to true
+                limit != null -> getString(
+                    R.string.today_left,
+                    formatMinutes(this, ((limit * 60_000L - u.timeMs) / 60_000L).toInt().coerceAtLeast(1))
+                ) to false
+                maxOpens != null -> getString(R.string.widget_opens_left, maxOpens - u.opens) to false
+                else -> getString(R.string.today_no_daytime) to false
+            }
+            val fraction = when {
+                blocked -> 1f
+                limit != null -> (u.timeMs.toFloat() / (limit * 60_000L)).coerceIn(0f, 1f)
+                maxOpens != null -> (u.opens.toFloat() / maxOpens).coerceIn(0f, 1f)
+                else -> 0f
+            }
+            list.addView(LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(0, dp(8), 0, dp(8))
+                addView(ImageView(this@MainActivity).apply { setImageDrawable(app.icon) },
+                    LinearLayout.LayoutParams(dp(36), dp(36)))
+                addView(LinearLayout(this@MainActivity).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setPadding(dp(12), 0, 0, 0)
+                    addView(LinearLayout(this@MainActivity).apply {
+                        orientation = LinearLayout.HORIZONTAL
+                        addView(TextView(this@MainActivity).apply {
+                            text = app.label
+                            textSize = 15f
+                            setSingleLine(true)
+                            setTextColor(Look.text(this@MainActivity))
+                        }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+                        addView(TextView(this@MainActivity).apply {
+                            text = status
+                            textSize = 13f
+                            setTextColor(if (blocked) Look.danger(this@MainActivity) else Look.muted(this@MainActivity))
+                        })
+                    })
+                    addView(progressBar(fraction, blocked), LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, dp(6)
+                    ).apply { topMargin = dp(6) })
+                }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+                setOnClickListener { showLimitDialog(app) }
+            })
+        }
+        page.addView(list, blockParams())
+
+        if (rules.values.any { it.night }) {
+            page.addView(mutedText(13f).apply {
+                text = if (nightNow) getString(R.string.today_night_now, formatTime(night.end))
+                else getString(R.string.today_night_info, formatTime(night.start), formatTime(night.end))
+                setPadding(dp(4), dp(14), 0, 0)
+            })
+        }
+        return page
+    }
+
+    private fun emptyState() = card().apply {
+        gravity = Gravity.CENTER_HORIZONTAL
+        setPadding(dp(20), dp(28), dp(20), dp(28))
+        addView(TextView(this@MainActivity).apply {
+            text = getString(R.string.today_empty_title)
+            textSize = 17f
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(Look.text(this@MainActivity))
+            gravity = Gravity.CENTER
+        })
+        addView(mutedText(14f).apply {
+            text = getString(R.string.today_empty_text)
+            gravity = Gravity.CENTER
+            setPadding(0, dp(8), 0, dp(16))
+        })
+        addView(primaryButton(getString(R.string.btn_pick_apps)) { openPicker() })
+    }
+
+    private fun progressBar(fraction: Float, blocked: Boolean) = LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL
+        background = Look.rounded(Look.barEmpty(this@MainActivity), dpf(3))
+        val color = if (blocked) Look.danger(this@MainActivity) else Look.ACCENT_FILL
+        if (fraction > 0f) {
+            addView(View(this@MainActivity).apply { background = Look.rounded(color, dpf(3)) },
+                LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, fraction))
+        }
+        if (fraction < 1f) {
+            addView(View(this@MainActivity), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f - fraction))
+        }
+    }
+
+    // =====================================================================
+    // Вкладка «Ліміти»
+    // =====================================================================
+
+    private fun limitsPage(): View {
+        val page = pageLayout(getString(R.string.tab_limits))
+        val rules = prefs.rules()
+        val pending = prefs.pendingRules()
+        val apps = appsWithRules()
+
+        if (apps.isNotEmpty()) {
+            val list = card().apply { setPadding(dp(16), dp(4), dp(16), dp(4)) }
+            apps.forEachIndexed { i, app ->
+                if (i > 0) list.addView(dividerLine())
+                val rule = rules[app.pkg]
+                val sb = StringBuilder(rule?.let { describe(it) } ?: getString(R.string.desc_none))
+                pending[app.pkg]?.let { sb.append("\n").append(getString(R.string.row_tomorrow, describe(it))) }
+                list.addView(listRow(app, sb.toString()) { showLimitDialog(app) })
+            }
+            page.addView(list, blockParams())
+        }
+
+        page.addView(TextView(this).apply {
+            text = getString(R.string.btn_pick_apps)
+            textSize = 15f
+            gravity = Gravity.CENTER
+            setTextColor(Look.accentText(this@MainActivity))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dpf(16)
+                setStroke(dp(1), Look.chip(this@MainActivity), dpf(6), dpf(4))
+            }
+            setPadding(0, dp(14), 0, dp(14))
+            setOnClickListener { openPicker() }
+        }, blockParams())
+        page.addView(mutedText(13f).apply {
+            text = getString(R.string.apps_hint)
+            setPadding(dp(4), dp(8), dp(4), 0)
+        })
+
+        // Нічний режим
+        page.addView(groupTitle(getString(R.string.section_night)))
+        val w = prefs.nightWindow()
+        val nightCount = rules.values.count { it.night }
+        page.addView(card().apply {
+            addView(LinearLayout(this@MainActivity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                addView(pill(getString(R.string.night_from_btn, formatTime(w.start))) { pickNightEdge(true) })
+                addView(pill(getString(R.string.night_to_btn, formatTime(w.end))) { pickNightEdge(false) },
+                    LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                        .apply { marginStart = dp(8) })
+            })
+            addView(mutedText(13f).apply {
+                text = buildString {
+                    append(
+                        if (nightCount == 0) getString(R.string.night_apps_none)
+                        else getString(R.string.night_apps_count, nightCount)
+                    )
+                    prefs.pendingNightWindow()?.let {
+                        append("\n").append(getString(R.string.night_pending, formatTime(it.start), formatTime(it.end)))
+                    }
+                    append("\n").append(getString(R.string.night_hint))
+                }
+                setPadding(0, dp(10), 0, 0)
+            })
+        }, blockParams())
+        return page
+    }
+
+    private fun listRow(app: AppItem, subtitle: String, onClick: () -> Unit) = LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        setPadding(0, dp(10), 0, dp(10))
+        addView(ImageView(this@MainActivity).apply { setImageDrawable(app.icon) },
+            LinearLayout.LayoutParams(dp(38), dp(38)))
+        addView(LinearLayout(this@MainActivity).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(12), 0, 0, 0)
+            addView(TextView(this@MainActivity).apply {
+                text = app.label
+                textSize = 15f
+                setTextColor(Look.text(this@MainActivity))
+            })
+            addView(mutedText(13f).apply { text = subtitle })
+        }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        addView(chevron())
+        setOnClickListener { onClick() }
+    }
+
+    // =====================================================================
+    // Вкладка «Налаштування»
+    // =====================================================================
+
+    private fun settingsPage(): View {
+        val page = pageLayout(getString(R.string.tab_settings))
+
+        // Вигляд
+        page.addView(groupTitle(getString(R.string.section_look)))
+        page.addView(card().apply {
+            addView(settingRow(getString(R.string.label_language),
                 segmented(listOf(Lang.UK to "UA", Lang.EN to "EN"), Lang.get(this@MainActivity)) {
                     Lang.set(this@MainActivity, it)
                     recreate()
-                }
-            ))
-            addView(settingRow(
-                getString(R.string.label_theme),
+                }))
+            addView(dividerLine())
+            addView(settingRow(getString(R.string.label_theme),
                 segmented(
                     listOf(
                         Look.AUTO to getString(R.string.theme_auto),
@@ -109,240 +458,273 @@ class MainActivity : Activity() {
                 ) {
                     Look.set(this@MainActivity, it)
                     recreate()
+                }))
+        }, blockParams())
+
+        // Дозволи
+        page.addView(groupTitle(getString(R.string.section_permissions)))
+        page.addView(card().apply {
+            val pm = getSystemService(PowerManager::class.java)
+            class PermRow(val ok: Boolean, val label: Int, val button: Int, val critical: Boolean, val action: () -> Unit)
+            val rows = listOf(
+                PermRow(hasUsageAccess(), R.string.perm_usage, R.string.btn_grant, true) { openUsageAccess() },
+                PermRow(isAccessibilityEnabled(), R.string.perm_a11y, R.string.btn_enable, true) { showAccessibilityHelp() },
+                PermRow(notificationsEnabled(), R.string.perm_notifications, R.string.btn_allow, false) { requestNotifications() },
+                PermRow(pm?.isIgnoringBatteryOptimizations(packageName) == true, R.string.perm_battery, R.string.btn_disable, false) {
+                    openBatterySettings()
                 }
-            ).apply { setPadding(0, dp(10), 0, 0) })
-        }, cardParams())
+            )
+            rows.forEachIndexed { i, r ->
+                if (i > 0) addView(dividerLine())
+                val color = when {
+                    r.ok -> Look.ok(this@MainActivity)
+                    r.critical -> Look.danger(this@MainActivity)
+                    else -> Look.warn(this@MainActivity)
+                }
+                val label = TextView(this@MainActivity).apply {
+                    text = statusLine(color, getString(r.label))
+                    textSize = 14f
+                    setTextColor(Look.text(this@MainActivity))
+                }
+                addView(LinearLayout(this@MainActivity).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(0, dp(10), 0, dp(10))
+                    addView(label, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+                    if (!r.ok) addView(smallButton(getString(r.button)) { r.action() })
+                })
+            }
+        }, blockParams())
 
-        // ---- Дозволи ----
-        usageStatus = TextView(this)
-        usageButton = smallButton(getString(R.string.btn_grant)) { openUsageAccess() }
-        a11yStatus = TextView(this)
-        a11yButton = smallButton(getString(R.string.btn_enable)) { showAccessibilityHelp() }
-        notifStatus = TextView(this)
-        notifButton = smallButton(getString(R.string.btn_allow)) { requestNotifications() }
-        batteryStatus = TextView(this)
-        batteryButton = smallButton(getString(R.string.btn_disable)) { openBatterySettings() }
-
-        permAllOk = TextView(this).apply {
-            text = statusLine(Look.ok(this@MainActivity), getString(R.string.perm_all_ok))
-            textSize = 15f
-            setTextColor(Look.text(this@MainActivity))
-        }
-        permRows = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            addView(cardTitle(getString(R.string.section_permissions)))
-            addView(permissionRow(usageStatus, usageButton))
-            addView(permissionRow(a11yStatus, a11yButton))
-            addView(permissionRow(notifStatus, notifButton))
-            addView(permissionRow(batteryStatus, batteryButton))
-        }
-        header.addView(card().apply {
-            addView(permAllOk)
-            addView(permRows)
-        }, cardParams())
-
-        // ---- Захист від видалення ----
-        protectionSwitch = Switch(this).apply {
-            text = getString(R.string.protection_switch)
-            textSize = 15f
-            setTextColor(Look.text(this@MainActivity))
-        }
-        protectionNote = mutedText(13f).apply { setPadding(0, dp(6), 0, 0) }
-        header.addView(card().apply {
-            addView(cardTitle(getString(R.string.section_protection)))
-            addView(protectionSwitch)
-            addView(protectionNote)
-        }, cardParams())
-
-        // ---- Нічний режим ----
-        nightFromButton = pill { pickNightEdge(isStart = true) }
-        nightToButton = pill { pickNightEdge(isStart = false) }
-        nightText = mutedText(13f).apply { setPadding(0, dp(8), 0, 0) }
-        header.addView(card().apply {
-            addView(cardTitle(getString(R.string.section_night)))
-            addView(LinearLayout(this@MainActivity).apply {
-                orientation = LinearLayout.HORIZONTAL
-                addView(nightFromButton)
-                addView(nightToButton, LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
-                ).apply { marginStart = dp(8) })
+        // Захист
+        page.addView(groupTitle(getString(R.string.group_protection)))
+        page.addView(card().apply {
+            addView(Switch(this@MainActivity).apply {
+                text = getString(R.string.protection_switch)
+                textSize = 15f
+                setTextColor(Look.text(this@MainActivity))
+                isChecked = prefs.protectionEnabled() && prefs.protectionOffAt() == null
+                setOnCheckedChangeListener { _, checked -> onProtectionToggled(checked) }
             })
-            addView(nightText)
-        }, cardParams())
+            val offAt = prefs.protectionOffAt()
+            addView(mutedText(13f).apply {
+                text = when {
+                    offAt != null -> getString(R.string.protection_note_pending, formatDateTime(offAt))
+                    prefs.protectionEnabled() -> getString(R.string.protection_note_on)
+                    else -> getString(R.string.protection_note_off)
+                }
+                setPadding(0, dp(8), 0, 0)
+            })
+        }, blockParams())
 
-        // ---- Вечірній підсумок ----
-        summarySwitch = Switch(this).apply {
-            text = getString(R.string.summary_switch)
-            textSize = 15f
-            setTextColor(Look.text(this@MainActivity))
-        }
-        summaryTimeButton = pill { pickSummaryTime() }
-        header.addView(card().apply {
-            addView(cardTitle(getString(R.string.summary_title)))
-            addView(summarySwitch)
+        // Сповіщення
+        page.addView(groupTitle(getString(R.string.group_notifications)))
+        page.addView(card().apply {
+            addView(Switch(this@MainActivity).apply {
+                text = getString(R.string.summary_switch)
+                textSize = 15f
+                setTextColor(Look.text(this@MainActivity))
+                isChecked = prefs.summaryEnabled()
+                setOnCheckedChangeListener { _, on ->
+                    prefs.setSummary(on)
+                    render()
+                }
+            })
             addView(LinearLayout(this@MainActivity).apply {
                 orientation = LinearLayout.HORIZONTAL
                 setPadding(0, dp(8), 0, 0)
-                addView(summaryTimeButton)
+                addView(pill(getString(R.string.summary_at, formatTime(prefs.summaryTime()))) { pickSummaryTime() }
+                    .apply { alpha = if (prefs.summaryEnabled()) 1f else 0.4f })
             })
             addView(mutedText(13f).apply {
                 text = getString(R.string.summary_hint)
                 setPadding(0, dp(8), 0, 0)
             })
-        }, cardParams())
+        }, blockParams())
 
-        // ---- Статистика ----
-        header.addView(card().apply {
-            addView(LinearLayout(this@MainActivity).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                addView(TextView(this@MainActivity).apply {
-                    text = getString(R.string.btn_weekly_stats)
-                    textSize = 15f
-                    setTextColor(Look.text(this@MainActivity))
-                }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-                addView(TextView(this@MainActivity).apply {
-                    text = "›"
-                    textSize = 22f
-                    setTextColor(Look.muted(this@MainActivity))
-                })
-            })
-            isClickable = true
-            setOnClickListener { startActivity(Intent(this@MainActivity, StatsActivity::class.java)) }
-        }, cardParams())
+        // Оновлення
+        page.addView(groupTitle(getString(R.string.update_title)))
+        page.addView(updatesCard(), blockParams())
 
-        // ---- Оновлення ----
-        header.addView(card().apply {
-            addView(cardTitle(getString(R.string.update_title)))
-            addView(mutedText(13f).apply { text = getString(R.string.update_version, appVersion()) })
-            addView(LinearLayout(this@MainActivity).apply {
-                orientation = LinearLayout.HORIZONTAL
-                setPadding(0, dp(8), 0, 0)
-                addView(smallButton(getString(R.string.update_button)) { openReleases() })
+        // Статистика і «Про додаток»
+        page.addView(groupTitle(getString(R.string.group_about)))
+        page.addView(card().apply {
+            setPadding(dp(16), dp(4), dp(16), dp(4))
+            addView(linkRow(getString(R.string.btn_weekly_stats)) {
+                startActivity(Intent(this@MainActivity, StatsActivity::class.java))
             })
-            addView(mutedText(12f).apply {
-                text = getString(R.string.update_hint)
-                setPadding(0, dp(8), 0, 0)
+            addView(dividerLine())
+            addView(linkRow(getString(R.string.about_source)) {
+                safeStart(Intent(Intent.ACTION_VIEW, Uri.parse(Updater.SOURCE_URL)))
             })
-        }, cardParams())
+            addView(dividerLine())
+            addView(mutedText(13f).apply {
+                text = getString(R.string.about_license)
+                setPadding(0, dp(12), 0, dp(12))
+            })
+        }, blockParams())
 
-        // ---- Додатки з лімітами ----
-        header.addView(LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, dp(20), 0, dp(4))
-            addView(TextView(this@MainActivity).apply {
-                text = getString(R.string.section_apps)
-                textSize = 18f
-                setTypeface(typeface, Typeface.BOLD)
-                setTextColor(Look.text(this@MainActivity))
-            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            addView(smallButton(getString(R.string.btn_pick_apps)) {
-                @Suppress("DEPRECATION")
-                startActivityForResult(Intent(this@MainActivity, AppPickerActivity::class.java), REQ_PICK)
-            })
-        })
-        header.addView(mutedText(13f).apply { text = getString(R.string.apps_hint) })
-        emptyText = mutedText(14f).apply {
-            text = getString(R.string.apps_empty)
-            gravity = Gravity.CENTER
-            background = Look.rounded(Look.card(this@MainActivity), dpf(16))
-            setPadding(dp(20), dp(24), dp(20), dp(24))
-            visibility = View.GONE
-        }
-        header.addView(emptyText, cardParams())
-        loadingText = TextView(this).apply {
-            text = getString(R.string.loading_apps)
-            setPadding(0, dp(12), 0, 0)
-        }
-        header.addView(loadingText)
+        // Автоперевірка (раз на день, лише за згоди) — після побудови сторінки.
+        if (Updater.shouldAutoCheck(this) && updateState == null) ui.post { checkForUpdates() }
+        return page
+    }
 
-        adapter = AppAdapter()
-        listView = ListView(this).apply {
-            addHeaderView(header, null, false)
-            adapter = this@MainActivity.adapter
-            divider = null
-            setOnItemClickListener { _, _, position, _ ->
-                val index = position - headerViewsCount
-                if (index in apps.indices) showLimitDialog(apps[index])
+    private fun linkRow(label: String, onClick: () -> Unit) = LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        setPadding(0, dp(12), 0, dp(12))
+        addView(TextView(this@MainActivity).apply {
+            text = label
+            textSize = 15f
+            setTextColor(Look.text(this@MainActivity))
+        }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        addView(chevron())
+        setOnClickListener { onClick() }
+    }
+
+    // =====================================================================
+    // Оновлення
+    // =====================================================================
+
+    private fun updatesCard() = card().apply {
+        val consent = Updater.consent(this@MainActivity)
+        val allowed = consent == Updater.Consent.YES
+
+        addView(Switch(this@MainActivity).apply {
+            text = getString(R.string.upd_switch)
+            textSize = 15f
+            setTextColor(Look.text(this@MainActivity))
+            isChecked = allowed
+            setOnCheckedChangeListener { _, on ->
+                if (on) askUpdateConsent() else {
+                    Updater.setConsent(this@MainActivity, Updater.Consent.NO)
+                    updateState = null
+                    render()
+                }
             }
-        }
-        setContentView(listView)
+        })
+        addView(mutedText(13f).apply {
+            text = getString(if (allowed) R.string.upd_explain else R.string.upd_off_hint)
+            setPadding(0, dp(8), 0, 0)
+        })
+        addView(mutedText(13f).apply {
+            text = getString(R.string.upd_installed, Updater.installedVersion(this@MainActivity))
+            setPadding(0, dp(10), 0, 0)
+        })
 
-        loadApps()
+        if (allowed) {
+            val release = updateRelease
+            updateState?.let { state ->
+                addView(TextView(this@MainActivity).apply {
+                    text = state
+                    textSize = 14f
+                    setTextColor(Look.text(this@MainActivity))
+                    setPadding(0, dp(6), 0, 0)
+                })
+            }
+            addView(LinearLayout(this@MainActivity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                setPadding(0, dp(10), 0, 0)
+                if (release != null && Updater.isNewer(release.version, Updater.installedVersion(this@MainActivity))) {
+                    addView(primaryButton(getString(R.string.upd_update)) { startUpdate(release) })
+                } else {
+                    addView(smallButton(getString(R.string.upd_check_now)) { checkForUpdates() })
+                }
+            })
+        } else {
+            addView(LinearLayout(this@MainActivity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                setPadding(0, dp(10), 0, 0)
+                addView(smallButton(getString(R.string.upd_check_now)) { askUpdateConsent() })
+            })
+        }
     }
 
-    override fun onResume() {
-        super.onResume()
-        refreshStatus()
-        refreshUsage()
-        sortApps()
-        adapter.notifyDataSetChanged()
+    /** Чесне пояснення, навіщо інтернет, і вибір «так / ні». */
+    private fun askUpdateConsent() {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.consent_title)
+            .setMessage(R.string.consent_message)
+            .setPositiveButton(R.string.consent_yes) { _, _ ->
+                Updater.setConsent(this, Updater.Consent.YES)
+                checkForUpdates()
+            }
+            .setNegativeButton(R.string.consent_no) { _, _ ->
+                Updater.setConsent(this, Updater.Consent.NO)
+                render()
+            }
+            .setOnCancelListener { render() }
+            .show()
     }
 
-    // ---------- Стан ----------
+    private fun checkForUpdates() {
+        if (Updater.consent(this) != Updater.Consent.YES) return
+        updateState = getString(R.string.upd_checking)
+        updateRelease = null
+        if (tab == TAB_SETTINGS) render()
+        Thread {
+            val result = runCatching { Updater.fetchLatest(applicationContext) }
+            ui.post {
+                val release = result.getOrNull()
+                updateRelease = release
+                updateState = when {
+                    release == null -> getString(R.string.upd_error)
+                    Updater.isNewer(release.version, Updater.installedVersion(this)) ->
+                        getString(R.string.upd_available, release.version)
+                    else -> getString(R.string.upd_latest)
+                }
+                if (tab == TAB_SETTINGS && !isFinishing) render()
+            }
+        }.start()
+    }
 
-    private fun refreshStatus() {
-        val hasUsage = hasUsageAccess()
-        usageStatus.text = statusLine(if (hasUsage) Look.ok(this) else Look.danger(this), getString(R.string.perm_usage))
-        usageButton.visibility = if (hasUsage) View.GONE else View.VISIBLE
-
-        val hasA11y = isAccessibilityEnabled()
-        a11yStatus.text = statusLine(if (hasA11y) Look.ok(this) else Look.danger(this), getString(R.string.perm_a11y))
-        a11yButton.visibility = if (hasA11y) View.GONE else View.VISIBLE
-
-        val notif = notificationsEnabled()
-        notifStatus.text = statusLine(if (notif) Look.ok(this) else Look.warn(this), getString(R.string.perm_notifications))
-        notifButton.visibility = if (notif) View.GONE else View.VISIBLE
-
-        val pm = getSystemService(PowerManager::class.java)
-        val noBatteryLimit = pm?.isIgnoringBatteryOptimizations(packageName) == true
-        batteryStatus.text = statusLine(if (noBatteryLimit) Look.ok(this) else Look.warn(this), getString(R.string.perm_battery))
-        batteryButton.visibility = if (noBatteryLimit) View.GONE else View.VISIBLE
-
-        // Коли все надано — показуємо один рядок замість чотирьох.
-        val allOk = hasUsage && hasA11y && notif && noBatteryLimit
-        permAllOk.visibility = if (allOk) View.VISIBLE else View.GONE
-        permRows.visibility = if (allOk) View.GONE else View.VISIBLE
-
-        protectionSwitch.setOnCheckedChangeListener(null)
-        protectionSwitch.isChecked = prefs.protectionEnabled() && prefs.protectionOffAt() == null
-        protectionSwitch.setOnCheckedChangeListener { _, checked -> onProtectionToggled(checked) }
-        val offAt = prefs.protectionOffAt()
-        protectionNote.text = when {
-            offAt != null -> getString(R.string.protection_note_pending, formatDateTime(offAt))
-            prefs.protectionEnabled() -> getString(R.string.protection_note_on)
-            else -> getString(R.string.protection_note_off)
-        }
-
-        summarySwitch.setOnCheckedChangeListener(null)
-        summarySwitch.isChecked = prefs.summaryEnabled()
-        summarySwitch.setOnCheckedChangeListener { _, on ->
-            prefs.setSummary(on)
-            refreshStatus()
-        }
-        summaryTimeButton.text = getString(R.string.summary_at, formatTime(prefs.summaryTime()))
-        summaryTimeButton.alpha = if (prefs.summaryEnabled()) 1f else 0.4f
-
-        val w = prefs.nightWindow()
-        nightFromButton.text = getString(R.string.night_from_btn, formatTime(w.start))
-        nightToButton.text = getString(R.string.night_to_btn, formatTime(w.end))
-        val nightApps = prefs.rules().values.count { it.night }
-        val pendingNight = prefs.pendingNightWindow()
-        nightText.text = buildString {
-            append(
-                if (nightApps == 0) getString(R.string.night_apps_none)
-                else getString(R.string.night_apps_count, nightApps)
-            )
-            if (w.coversNow() && nightApps > 0) append("\n").append(getString(R.string.night_active_now))
-            if (pendingNight != null) {
-                append("\n").append(
-                    getString(R.string.night_pending, formatTime(pendingNight.start), formatTime(pendingNight.end))
+    private fun startUpdate(release: Updater.Release) {
+        if (!Updater.canInstall(this)) {
+            explainThen(R.string.install_perm_title, R.string.install_perm_message) {
+                safeStart(
+                    Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES)
+                        .setData(Uri.parse("package:$packageName"))
                 )
             }
-            append("\n").append(getString(R.string.night_hint))
+            return
         }
+        if (release.apkUrl == null) {
+            safeStart(Intent(Intent.ACTION_VIEW, Uri.parse(release.pageUrl)))
+            return
+        }
+        val id = try {
+            Updater.download(applicationContext, release)
+        } catch (e: Exception) {
+            updateState = getString(R.string.upd_download_error)
+            render()
+            return
+        }
+        updateState = getString(R.string.upd_downloading)
+        render()
+        val app = applicationContext
+        Thread {
+            var done: Boolean? = null
+            for (i in 0 until 600) { // до 10 хвилин
+                done = Updater.downloadStatus(app, id)
+                if (done != null) break
+                Thread.sleep(1000)
+            }
+            ui.post {
+                if (done == true && Updater.install(app, id)) {
+                    updateState = null
+                } else {
+                    updateState = getString(R.string.upd_download_error)
+                }
+                if (!isFinishing && tab == TAB_SETTINGS) render()
+            }
+        }.start()
     }
+
+    // =====================================================================
+    // Дозволи
+    // =====================================================================
+
+    private fun allPermissionsOk(): Boolean = hasUsageAccess() && isAccessibilityEnabled()
 
     private fun hasUsageAccess(): Boolean {
         val ops = getSystemService(APP_OPS_SERVICE) as AppOpsManager
@@ -364,8 +746,11 @@ class MainActivity : Activity() {
         return enabled.split(':').any { ComponentName.unflattenFromString(it) == mine }
     }
 
+    private fun notificationsEnabled(): Boolean =
+        getSystemService(NotificationManager::class.java)?.areNotificationsEnabled() == true
+
     /**
-     * Системні сторінки дозволів Android показує мовою телефона, а не мовою LockTime.
+     * Системні сторінки Android показує мовою телефона, а не мовою LockTime.
      * Тому перед ними — коротке пояснення обраною мовою, що саме натиснути.
      */
     private fun explainThen(titleRes: Int, messageRes: Int, open: () -> Unit) {
@@ -400,9 +785,6 @@ class MainActivity : Activity() {
             .show()
     }
 
-    private fun notificationsEnabled(): Boolean =
-        getSystemService(NotificationManager::class.java)?.areNotificationsEnabled() == true
-
     private fun requestNotifications() {
         if (Build.VERSION.SDK_INT >= 33 &&
             checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) !=
@@ -430,7 +812,7 @@ class MainActivity : Activity() {
         if (requestCode == REQ_NOTIFICATIONS) {
             // Якщо системне вікно більше не показується (відмовили двічі) — відкриваємо налаштування.
             if (!notificationsEnabled()) openNotificationSettings()
-            refreshStatus()
+            render()
         }
     }
 
@@ -444,18 +826,6 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun appVersion(): String =
-        try {
-            packageManager.getPackageInfo(packageName, 0).versionName ?: "?"
-        } catch (e: Exception) {
-            "?"
-        }
-
-    /** У LockTime немає доступу до інтернету, тож оновлення відкриваємо в браузері. */
-    private fun openReleases() {
-        safeStart(Intent(Intent.ACTION_VIEW, Uri.parse(RELEASES_URL)))
-    }
-
     private fun onProtectionToggled(checked: Boolean) {
         if (checked) {
             AlertDialog.Builder(this)
@@ -463,14 +833,14 @@ class MainActivity : Activity() {
                 .setMessage(R.string.protect_on_message)
                 .setPositiveButton(R.string.btn_turn_on) { _, _ ->
                     prefs.setProtection(true)
-                    refreshStatus()
+                    render()
                 }
-                .setNegativeButton(R.string.btn_cancel) { _, _ -> refreshStatus() }
-                .setOnCancelListener { refreshStatus() }
+                .setNegativeButton(R.string.btn_cancel) { _, _ -> render() }
+                .setOnCancelListener { render() }
                 .show()
         } else {
             val offAt = prefs.setProtection(false)
-            refreshStatus()
+            render()
             if (offAt != null) {
                 AlertDialog.Builder(this)
                     .setTitle(R.string.protect_off_title)
@@ -489,15 +859,17 @@ class MainActivity : Activity() {
             false
         }
 
+    // =====================================================================
+    // Час: підсумок і нічний режим
+    // =====================================================================
+
     private fun pickSummaryTime() {
         val t = prefs.summaryTime()
         TimePickerDialog(this, { _, h, m ->
             prefs.setSummary(true, h * 60 + m)
-            refreshStatus()
+            render()
         }, t / 60, t % 60, true).show()
     }
-
-    // ---------- Нічний режим ----------
 
     private fun pickNightEdge(isStart: Boolean) {
         val current = prefs.pendingNightWindow() ?: prefs.nightWindow()
@@ -509,7 +881,7 @@ class MainActivity : Activity() {
                 Toast.makeText(this, getString(R.string.toast_night_same), Toast.LENGTH_LONG).show()
             } else {
                 showResult(prefs.setNightWindow(window))
-                refreshStatus()
+                render()
                 LimitWidget.update(this)
             }
         }, minute / 60, minute % 60, true).apply {
@@ -517,20 +889,19 @@ class MainActivity : Activity() {
         }.show()
     }
 
-    // ---------- Список додатків ----------
+    // =====================================================================
+    // Додатки і правила
+    // =====================================================================
 
-    private fun loadApps() {
-        Thread {
-            val items = Apps.loadLaunchable(this)
-            runOnUiThread {
-                allApps = items
-                appsLoaded = true
-                loadingText.visibility = View.GONE
-                sortApps()
-                refreshUsage()
-                adapter.notifyDataSetChanged()
-            }
-        }.start()
+    /** Додатки з чинними або запланованими правилами, за абеткою. */
+    private fun appsWithRules(): List<AppItem> {
+        val limited = prefs.rules().keys + prefs.pendingRules().keys
+        return allApps.filter { it.pkg in limited }
+    }
+
+    private fun openPicker() {
+        @Suppress("DEPRECATION")
+        startActivityForResult(Intent(this, AppPickerActivity::class.java), REQ_PICK)
     }
 
     @Deprecated("Deprecated in Java")
@@ -542,23 +913,6 @@ class MainActivity : Activity() {
         val app = allApps.firstOrNull { it.pkg == pkg } ?: return
         showLimitDialog(app)
     }
-
-    /** Головний список — лише додатки з чинними або запланованими лімітами. */
-    private fun sortApps() {
-        val limited = prefs.rules().keys + prefs.pendingRules().keys
-        apps = allApps.filter { it.pkg in limited }.sortedBy { it.label.lowercase() }
-        emptyText.visibility = if (appsLoaded && apps.isEmpty()) View.VISIBLE else View.GONE
-    }
-
-    private fun refreshUsage() {
-        usage = if (hasUsageAccess()) {
-            UsageTracker.usageToday(this, prefs.rules().keys, null)
-        } else {
-            emptyMap()
-        }
-    }
-
-    // ---------- Вікно правил додатка ----------
 
     private fun numberField(value: Int?, hintText: String) = EditText(this).apply {
         inputType = InputType.TYPE_CLASS_NUMBER
@@ -589,7 +943,11 @@ class MainActivity : Activity() {
         }
         fun refresh() {
             val current = target.text.toString().toIntOrNull()
-            for ((value, chip) in chips) styleChip(chip, value == current)
+            for ((value, chip) in chips) {
+                val selected = value == current
+                chip.background = Look.rounded(if (selected) Look.ACCENT_FILL else Look.chip(this), dpf(16))
+                chip.setTextColor(if (selected) Look.WHITE else Look.text(this))
+            }
         }
         target.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
@@ -602,11 +960,6 @@ class MainActivity : Activity() {
             setPadding(0, dp(2), 0, dp(4))
             addView(row)
         }
-    }
-
-    private fun styleChip(chip: TextView, selected: Boolean) {
-        chip.background = Look.rounded(if (selected) Look.ACCENT_FILL else Look.chip(this), dpf(16))
-        chip.setTextColor(if (selected) Look.WHITE else Look.text(this))
     }
 
     private fun dialogSection(title: String) = TextView(this).apply {
@@ -676,12 +1029,10 @@ class MainActivity : Activity() {
         }
         modeToggle.setOnClickListener {
             if (!perDay) {
-                // Переносимо значення будні/вихідні в поля днів.
                 val wd = parseMinutes(weekdayInput)
                 val we = parseMinutes(weekendInput) ?: wd
                 for (i in 0 until 7) dayInputs[i].setText((if (i < 5) wd else we)?.toString() ?: "")
             } else {
-                // Назад: будні беремо з понеділка, вихідні — із суботи.
                 val mon = parseMinutes(dayInputs[0])
                 val sat = parseMinutes(dayInputs[5])
                 weekdayInput.setText(mon?.toString() ?: "")
@@ -758,13 +1109,10 @@ class MainActivity : Activity() {
     private fun applyRule(pkg: String, rule: Rule) {
         showResult(prefs.setRule(pkg, rule))
         LimitWidget.update(this)
-        if (!isAccessibilityEnabled() || !hasUsageAccess()) {
+        if (!allPermissionsOk()) {
             Toast.makeText(this, getString(R.string.toast_need_permissions), Toast.LENGTH_LONG).show()
         }
-        sortApps()
-        refreshUsage()
-        refreshStatus()
-        adapter.notifyDataSetChanged()
+        render()
     }
 
     private fun showResult(result: Prefs.Result) {
@@ -798,120 +1146,50 @@ class MainActivity : Activity() {
         return if (parts.isEmpty()) getString(R.string.desc_none) else parts.joinToString(" · ")
     }
 
-    // ---------- Рядок списку ----------
+    // =====================================================================
+    // Будівельні блоки інтерфейсу
+    // =====================================================================
 
-    private class RowHolder(val icon: ImageView, val name: TextView, val subtitle: TextView)
-
-    private inner class AppAdapter : BaseAdapter() {
-        override fun getCount() = apps.size
-        override fun getItem(position: Int) = apps[position]
-        override fun getItemId(position: Int) = position.toLong()
-
-        override fun getView(position: Int, convertView: View?, parent: ViewGroup?): View {
-            val row: View
-            val holder: RowHolder
-            if (convertView == null) {
-                val icon = ImageView(this@MainActivity)
-                val name = TextView(this@MainActivity).apply {
-                    textSize = 16f
-                    setTypeface(typeface, Typeface.BOLD)
-                    setTextColor(Look.text(this@MainActivity))
-                }
-                val subtitle = TextView(this@MainActivity).apply { textSize = 13f }
-                val texts = LinearLayout(this@MainActivity).apply {
-                    orientation = LinearLayout.VERTICAL
-                    setPadding(dp(14), 0, 0, 0)
-                    addView(name)
-                    addView(subtitle)
-                }
-                row = LinearLayout(this@MainActivity).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    gravity = Gravity.CENTER_VERTICAL
-                    setPadding(dp(20), dp(10), dp(16), dp(10))
-                    addView(icon, LinearLayout.LayoutParams(dp(42), dp(42)))
-                    addView(texts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-                    addView(TextView(this@MainActivity).apply {
-                        text = "›"
-                        textSize = 22f
-                        setTextColor(Look.muted(this@MainActivity))
-                        setPadding(dp(8), 0, 0, 0)
-                    })
-                }
-                holder = RowHolder(icon, name, subtitle)
-                row.tag = holder
-            } else {
-                row = convertView
-                holder = convertView.tag as RowHolder
-            }
-
-            val app = apps[position]
-            holder.icon.setImageDrawable(app.icon)
-            holder.name.text = app.label
-
-            val rule = prefs.rules()[app.pkg]
-            val pending = prefs.pendingRules()[app.pkg]
-            val used = usage[app.pkg] ?: AppUsage()
-
-            var blocked = false
-            val sb = StringBuilder()
-            if (rule == null) {
-                sb.append(getString(R.string.row_no_limit))
-            } else {
-                val limitMin = rule.minutesFor(LocalDate.now())
-                val maxOpens = rule.opens
-                val status = when {
-                    rule.night && prefs.nightWindow().coversNow() -> getString(R.string.status_night)
-                    maxOpens != null && used.opens >= maxOpens -> getString(R.string.status_opens)
-                    limitMin != null && used.timeMs >= limitMin * 60_000L -> getString(R.string.status_time)
-                    else -> null
-                }
-                if (status != null) {
-                    blocked = true
-                    sb.append(status).append("\n")
-                }
-                sb.append(describe(rule))
-                sb.append("\n").append(
-                    getString(
-                        R.string.row_today,
-                        formatMinutes(this@MainActivity, (used.timeMs / 60_000L).toInt()),
-                        used.opens
-                    )
-                )
-            }
-            if (pending != null) {
-                sb.append("\n").append(getString(R.string.row_tomorrow, describe(pending)))
-            }
-            holder.subtitle.text = sb.toString()
-            holder.subtitle.setTextColor(
-                when {
-                    blocked -> Look.danger(this@MainActivity)
-                    rule != null -> Look.accentText(this@MainActivity)
-                    else -> Look.muted(this@MainActivity)
-                }
-            )
-            return row
-        }
+    /** Сторінка з великим заголовком. */
+    private fun pageLayout(title: String) = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(dp(16), dp(20), dp(16), dp(24))
+        addView(TextView(this@MainActivity).apply {
+            text = title
+            textSize = 28f
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(Look.text(this@MainActivity))
+            setPadding(dp(4), dp(8), 0, dp(8))
+        })
     }
 
-    // ---------- Будівельні блоки інтерфейсу ----------
+    private fun groupTitle(text: String) = TextView(this).apply {
+        this.text = text
+        textSize = 13f
+        setTextColor(Look.muted(this@MainActivity))
+        setPadding(dp(4), dp(20), 0, dp(2))
+    }
 
-    /** Секція-картка з заокругленими кутами. */
     private fun card() = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
         background = Look.rounded(Look.card(this@MainActivity), dpf(16))
         setPadding(dp(16), dp(14), dp(16), dp(14))
     }
 
-    private fun cardParams() = LinearLayout.LayoutParams(
+    private fun blockParams() = LinearLayout.LayoutParams(
         ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-    ).apply { topMargin = dp(10) }
+    ).apply { topMargin = dp(8) }
 
-    private fun cardTitle(text: String) = TextView(this).apply {
-        this.text = text
-        textSize = 16f
-        setTypeface(typeface, Typeface.BOLD)
-        setTextColor(Look.text(this@MainActivity))
-        setPadding(0, 0, 0, dp(8))
+    private fun dividerLine() = View(this).apply {
+        setBackgroundColor(Look.divider(this@MainActivity))
+        layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 1)
+    }
+
+    private fun chevron() = TextView(this).apply {
+        text = "›"
+        textSize = 22f
+        setTextColor(Look.muted(this@MainActivity))
+        setPadding(dp(8), 0, 0, 0)
     }
 
     private fun mutedText(size: Float) = TextView(this).apply {
@@ -919,10 +1197,10 @@ class MainActivity : Activity() {
         setTextColor(Look.muted(this@MainActivity))
     }
 
-    /** Підпис ліворуч, елемент керування праворуч. */
     private fun settingRow(label: String, control: View) = LinearLayout(this).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
+        setPadding(0, dp(8), 0, dp(8))
         addView(TextView(this@MainActivity).apply {
             text = label
             textSize = 15f
@@ -931,7 +1209,6 @@ class MainActivity : Activity() {
         addView(control)
     }
 
-    /** Сегментований перемикач: кілька варіантів, вибраний підсвічено. */
     private fun segmented(
         options: List<Pair<String, String>>,
         selected: String,
@@ -955,8 +1232,9 @@ class MainActivity : Activity() {
         }
     }
 
-    /** Велика кнопка-«пігулка» з часом нічного режиму. */
-    private fun pill(onClick: () -> Unit) = TextView(this).apply {
+    /** Велика «пігулка» (час нічного режиму, підсумку). */
+    private fun pill(label: String, onClick: () -> Unit) = TextView(this).apply {
+        text = label
         textSize = 16f
         setTypeface(typeface, Typeface.BOLD)
         setTextColor(Look.accentText(this@MainActivity))
@@ -965,7 +1243,6 @@ class MainActivity : Activity() {
         setOnClickListener { onClick() }
     }
 
-    /** Невелика кнопка-«пігулка» замість сірої системної. */
     private fun smallButton(label: String, onClick: () -> Unit) = TextView(this).apply {
         text = label
         textSize = 13f
@@ -976,26 +1253,29 @@ class MainActivity : Activity() {
         setOnClickListener { onClick() }
     }
 
+    private fun primaryButton(label: String, onClick: () -> Unit) = TextView(this).apply {
+        text = label
+        textSize = 15f
+        gravity = Gravity.CENTER
+        setTextColor(Look.WHITE)
+        background = Look.rounded(Look.ACCENT_FILL, dpf(20))
+        setPadding(dp(24), dp(10), dp(24), dp(10))
+        setOnClickListener { onClick() }
+    }
+
     /** Рядок стану: маленька кольорова крапка і підпис. */
     private fun statusLine(color: Int, label: String): CharSequence =
         SpannableStringBuilder("●  $label").apply {
             setSpan(ForegroundColorSpan(color), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         }
 
-    private fun permissionRow(status: TextView, button: TextView) = LinearLayout(this).apply {
-        orientation = LinearLayout.HORIZONTAL
-        gravity = Gravity.CENTER_VERTICAL
-        setPadding(0, dp(5), 0, dp(5))
-        status.textSize = 14f
-        status.setTextColor(Look.text(this@MainActivity))
-        addView(status, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        addView(button)
-    }
-
     companion object {
+        private const val KEY_TAB = "tab"
+        private const val TAB_TODAY = 0
+        private const val TAB_LIMITS = 1
+        private const val TAB_SETTINGS = 2
         private const val REQ_NOTIFICATIONS = 1
         private const val REQ_PICK = 2
-        private const val RELEASES_URL = "https://github.com/coldtrace00/LockTime/releases/latest"
         private val PRESET_MINUTES = listOf(5, 10, 15, 30, 45, 60)
         private val PRESET_OPENS = listOf(3, 5, 10, 20)
 
@@ -1014,6 +1294,34 @@ class MainActivity : Activity() {
                 m == 0 -> context.getString(R.string.fmt_hours, h)
                 else -> context.getString(R.string.fmt_hours_minutes, h, m)
             }
+        }
+    }
+}
+
+/** Кільце прогресу для вкладки «Сьогодні». */
+private class RingView(
+    context: Context,
+    private val fraction: Float,
+    private val color: Int,
+    private val track: Int
+) : View(context) {
+    private val stroke = 12 * resources.displayMetrics.density
+    private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = stroke
+        strokeCap = Paint.Cap.ROUND
+    }
+    private val box = RectF()
+
+    override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
+        val half = stroke / 2
+        box.set(half, half, width - half, height - half)
+        paint.color = track
+        canvas.drawArc(box, 0f, 360f, false, paint)
+        if (fraction > 0f) {
+            paint.color = color
+            canvas.drawArc(box, -90f, 360f * fraction, false, paint)
         }
     }
 }
