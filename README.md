@@ -35,6 +35,7 @@ No passwords, no "5 more minutes", no "ignore for today".
 | Blocking | Back to the home screen plus a screen explaining why. Checked every 3 s, so it kicks in even mid-scroll. |
 | Warnings | Notifications 15, 10 and 5 min before the time limit runs out, and when 2 opens are left / on the last allowed open. Each once a day. |
 | Evening summary | One notification at a time you choose (default 21:00): time and opens in apps with limits today. |
+| Updates | The "Updates" card shows the installed version and opens the latest release in the browser — LockTime itself has no internet access. Install the new APK over the old one; settings stay. |
 | Widget | Home-screen widget showing time and opens left today. Tap to open LockTime. |
 | Statistics | How much time went into each app over the last 7 days. |
 | Appearance | Light, dark or auto theme (follows the phone); UA \| EN language switch. |
@@ -61,7 +62,7 @@ No passwords, no "5 more minutes", no "ignore for today".
    > go to Settings → Apps → LockTime → ⋮ (top right) →
    > **Allow restricted settings**, then turn the service on again.
 
-3. Tap an app in the list and set limits: minutes on weekdays and weekends,
+3. Tap **+ Choose apps**, pick an app (there's search) and set limits: minutes on weekdays and weekends,
    number of opens, block at night. An empty field means no limit.
 4. For a test, a 1-minute limit is handy. Once you're sure everything works,
    turn on uninstall protection if you want.
