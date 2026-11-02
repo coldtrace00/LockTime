@@ -89,4 +89,22 @@
     <string name="stats_total">Last %1$d days: %2$s</string>
     <string name="stats_average">On average %s a day. Apps with a limit are in blue.</string>
     <string name="stats_row">%1$s · %2$s a day</string>
+    <string name="section_look">Appearance</string>
+    <string name="label_language">Language</string>
+    <string name="label_theme">Theme</string>
+    <string name="theme_auto">Auto</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="perm_all_ok">✅ All permissions granted</string>
+    <string name="night_from_btn">From %s</string>
+    <string name="night_to_btn">To %s</string>
+    <string name="night_hint">Tap a time to change it. A wider window applies right away, a narrower one from tomorrow.</string>
+    <string name="night_apps_none">No app is marked “at night” yet — turn it on in an app’s settings.</string>
+    <string name="night_apps_count">Apps marked “at night”: %d</string>
+    <string name="dlg_time">Time per day</string>
+    <string name="dlg_weekdays">Weekdays</string>
+    <string name="dlg_weekends">Weekends (Sat, Sun)</string>
+    <string name="dlg_opens">Opens per day</string>
+    <string name="dlg_minutes_hint">minutes</string>
+    <string name="btn_remove_limits">Remove all limits</string>
 </resources>

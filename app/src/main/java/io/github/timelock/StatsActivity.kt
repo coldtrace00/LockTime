@@ -3,7 +3,6 @@ package io.github.timelock
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
-import android.graphics.Color
 import android.graphics.Typeface
 import android.os.Bundle
 import android.view.Gravity
@@ -27,6 +26,7 @@ class StatsActivity : Activity() {
     private lateinit var list: LinearLayout
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        setTheme(Look.themeRes(this))
         super.onCreate(savedInstanceState)
         title = getString(R.string.stats_title)
 
@@ -88,13 +88,13 @@ class StatsActivity : Activity() {
         list.addView(TextView(this).apply {
             text = getString(R.string.stats_average, formatMs(total / DAYS))
             textSize = 13f
-            setTextColor(Color.GRAY)
+            setTextColor(Look.muted(this@StatsActivity))
             setPadding(0, dp(4), 0, dp(12))
         })
 
         val max = rows.first().ms.coerceAtLeast(1L)
         for (r in rows) {
-            val color = if (r.limited) Color.parseColor("#3B5BDB") else Color.parseColor("#868E96")
+            val color = if (r.limited) Look.accentText(this) else Look.muted(this)
             val icon = ImageView(this).apply { setImageDrawable(r.icon) }
             val name = TextView(this).apply {
                 text = r.label
@@ -110,7 +110,7 @@ class StatsActivity : Activity() {
                 orientation = LinearLayout.HORIZONTAL
                 addView(View(this@StatsActivity).apply { setBackgroundColor(color) },
                     LinearLayout.LayoutParams(0, dp(6), fraction))
-                addView(View(this@StatsActivity),
+                addView(View(this@StatsActivity).apply { setBackgroundColor(Look.barEmpty(this@StatsActivity)) },
                     LinearLayout.LayoutParams(0, dp(6), 1f - fraction))
             }
             val texts = LinearLayout(this).apply {

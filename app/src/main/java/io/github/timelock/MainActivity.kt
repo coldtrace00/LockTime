@@ -9,7 +9,6 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.Drawable
 import android.net.Uri
@@ -18,7 +17,9 @@ import android.os.Bundle
 import android.os.PowerManager
 import android.os.Process
 import android.provider.Settings
+import android.text.Editable
 import android.text.InputType
+import android.text.TextWatcher
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -44,6 +45,8 @@ class MainActivity : Activity() {
     private lateinit var listView: ListView
     private lateinit var adapter: AppAdapter
 
+    private lateinit var permRows: LinearLayout
+    private lateinit var permAllOk: TextView
     private lateinit var usageStatus: TextView
     private lateinit var usageButton: Button
     private lateinit var a11yStatus: TextView
@@ -55,109 +58,141 @@ class MainActivity : Activity() {
     private lateinit var protectionSwitch: Switch
     private lateinit var protectionNote: TextView
     private lateinit var loadingText: TextView
+    private lateinit var nightFromButton: TextView
+    private lateinit var nightToButton: TextView
     private lateinit var nightText: TextView
 
     private var apps: List<AppItem> = emptyList()
     private var usage: Map<String, AppUsage> = emptyMap()
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
+    private fun dpf(v: Int) = v * resources.displayMetrics.density
 
     override fun attachBaseContext(newBase: Context) {
         super.attachBaseContext(Lang.wrap(newBase))
     }
 
-
     override fun onCreate(savedInstanceState: Bundle?) {
+        setTheme(Look.themeRes(this))
         super.onCreate(savedInstanceState)
         prefs = Prefs(this)
 
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(12), dp(16), dp(8))
+            setPadding(dp(16), dp(8), dp(16), dp(8))
         }
 
-        // Мова: назва розділу двомовна, щоб її було легко знайти будь-якою мовою.
-        header.addView(sectionTitle("Мова / Language"))
-        header.addView(LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            val current = Lang.get(this@MainActivity)
-            for ((code, name) in listOf(Lang.UK to "Українська", Lang.EN to "English")) {
-                addView(Button(this@MainActivity).apply {
-                    text = if (code == current) "✓ $name" else name
-                    setAllCaps(false)
-                    setOnClickListener {
-                        if (code != Lang.get(this@MainActivity)) {
-                            Lang.set(this@MainActivity, code)
-                            recreate()
-                        }
-                    }
-                })
-            }
-        })
+        // ---- Вигляд: мова і тема ----
+        header.addView(card().apply {
+            addView(settingRow(
+                getString(R.string.label_language),
+                segmented(listOf(Lang.UK to "UA", Lang.EN to "EN"), Lang.get(this@MainActivity)) {
+                    Lang.set(this@MainActivity, it)
+                    recreate()
+                }
+            ))
+            addView(settingRow(
+                getString(R.string.label_theme),
+                segmented(
+                    listOf(
+                        Look.AUTO to getString(R.string.theme_auto),
+                        Look.LIGHT to getString(R.string.theme_light),
+                        Look.DARK to getString(R.string.theme_dark)
+                    ),
+                    Look.get(this@MainActivity)
+                ) {
+                    Look.set(this@MainActivity, it)
+                    recreate()
+                }
+            ).apply { setPadding(0, dp(10), 0, 0) })
+        }, cardParams())
 
-        header.addView(sectionTitle(getString(R.string.section_permissions)))
-
+        // ---- Дозволи ----
         usageStatus = TextView(this)
-        usageButton = Button(this).apply {
-            text = getString(R.string.btn_grant)
-            setOnClickListener { openUsageAccess() }
-        }
-        header.addView(permissionRow(usageStatus, usageButton))
-
+        usageButton = smallButton(getString(R.string.btn_grant)) { openUsageAccess() }
         a11yStatus = TextView(this)
-        a11yButton = Button(this).apply {
-            text = getString(R.string.btn_enable)
-            setOnClickListener { showAccessibilityHelp() }
-        }
-        header.addView(permissionRow(a11yStatus, a11yButton))
-
+        a11yButton = smallButton(getString(R.string.btn_enable)) { showAccessibilityHelp() }
         notifStatus = TextView(this)
-        notifButton = Button(this).apply {
-            text = getString(R.string.btn_allow)
-            setOnClickListener { requestNotifications() }
-        }
-        header.addView(permissionRow(notifStatus, notifButton))
-
+        notifButton = smallButton(getString(R.string.btn_allow)) { requestNotifications() }
         batteryStatus = TextView(this)
-        batteryButton = Button(this).apply {
-            text = getString(R.string.btn_disable)
-            setOnClickListener { openBatterySettings() }
-        }
-        header.addView(permissionRow(batteryStatus, batteryButton))
+        batteryButton = smallButton(getString(R.string.btn_disable)) { openBatterySettings() }
 
-        header.addView(sectionTitle(getString(R.string.section_protection)))
+        permAllOk = TextView(this).apply {
+            text = getString(R.string.perm_all_ok)
+            textSize = 15f
+            setTextColor(Look.text(this@MainActivity))
+        }
+        permRows = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(cardTitle(getString(R.string.section_permissions)))
+            addView(permissionRow(usageStatus, usageButton))
+            addView(permissionRow(a11yStatus, a11yButton))
+            addView(permissionRow(notifStatus, notifButton))
+            addView(permissionRow(batteryStatus, batteryButton))
+        }
+        header.addView(card().apply {
+            addView(permAllOk)
+            addView(permRows)
+        }, cardParams())
+
+        // ---- Захист від видалення ----
         protectionSwitch = Switch(this).apply {
             text = getString(R.string.protection_switch)
-            textSize = 16f
+            textSize = 15f
+            setTextColor(Look.text(this@MainActivity))
         }
-        header.addView(protectionSwitch)
-        protectionNote = TextView(this).apply {
-            textSize = 13f
-            setTextColor(Color.GRAY)
-            setPadding(0, dp(4), 0, 0)
-        }
-        header.addView(protectionNote)
+        protectionNote = mutedText(13f).apply { setPadding(0, dp(6), 0, 0) }
+        header.addView(card().apply {
+            addView(cardTitle(getString(R.string.section_protection)))
+            addView(protectionSwitch)
+            addView(protectionNote)
+        }, cardParams())
 
-        header.addView(sectionTitle(getString(R.string.section_night)))
-        nightText = TextView(this).apply { textSize = 14f }
-        header.addView(nightText)
-        header.addView(Button(this).apply {
-            text = getString(R.string.btn_change_time)
-            setOnClickListener { pickNightWindow() }
-        })
+        // ---- Нічний режим ----
+        nightFromButton = pill { pickNightEdge(isStart = true) }
+        nightToButton = pill { pickNightEdge(isStart = false) }
+        nightText = mutedText(13f).apply { setPadding(0, dp(8), 0, 0) }
+        header.addView(card().apply {
+            addView(cardTitle(getString(R.string.section_night)))
+            addView(LinearLayout(this@MainActivity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                addView(nightFromButton)
+                addView(nightToButton, LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply { marginStart = dp(8) })
+            })
+            addView(nightText)
+        }, cardParams())
 
-        header.addView(sectionTitle(getString(R.string.section_stats)))
-        header.addView(Button(this).apply {
-            text = getString(R.string.btn_weekly_stats)
+        // ---- Статистика ----
+        header.addView(card().apply {
+            addView(LinearLayout(this@MainActivity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                addView(TextView(this@MainActivity).apply {
+                    text = getString(R.string.btn_weekly_stats)
+                    textSize = 15f
+                    setTextColor(Look.text(this@MainActivity))
+                }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+                addView(TextView(this@MainActivity).apply {
+                    text = "›"
+                    textSize = 22f
+                    setTextColor(Look.muted(this@MainActivity))
+                })
+            })
+            isClickable = true
             setOnClickListener { startActivity(Intent(this@MainActivity, StatsActivity::class.java)) }
-        })
+        }, cardParams())
 
-        header.addView(sectionTitle(getString(R.string.section_apps)))
+        // ---- Додатки ----
         header.addView(TextView(this).apply {
-            text = getString(R.string.apps_hint)
-            textSize = 13f
-            setTextColor(Color.GRAY)
+            text = getString(R.string.section_apps)
+            textSize = 18f
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(Look.text(this@MainActivity))
+            setPadding(0, dp(20), 0, dp(4))
         })
+        header.addView(mutedText(13f).apply { text = getString(R.string.apps_hint) })
         loadingText = TextView(this).apply {
             text = getString(R.string.loading_apps)
             setPadding(0, dp(12), 0, 0)
@@ -168,6 +203,7 @@ class MainActivity : Activity() {
         listView = ListView(this).apply {
             addHeaderView(header, null, false)
             adapter = this@MainActivity.adapter
+            divider = null
             setOnItemClickListener { _, _, position, _ ->
                 val index = position - headerViewsCount
                 if (index in apps.indices) showLimitDialog(apps[index])
@@ -186,7 +222,7 @@ class MainActivity : Activity() {
         adapter.notifyDataSetChanged()
     }
 
-    // ---------- Статус дозволів ----------
+    // ---------- Стан ----------
 
     private fun refreshStatus() {
         val hasUsage = hasUsageAccess()
@@ -206,31 +242,38 @@ class MainActivity : Activity() {
         batteryStatus.text = (if (noBatteryLimit) "✅ " else "⚠️ ") + getString(R.string.perm_battery)
         batteryButton.visibility = if (noBatteryLimit) View.GONE else View.VISIBLE
 
+        // Коли все надано — показуємо один рядок замість чотирьох.
+        val allOk = hasUsage && hasA11y && notif && noBatteryLimit
+        permAllOk.visibility = if (allOk) View.VISIBLE else View.GONE
+        permRows.visibility = if (allOk) View.GONE else View.VISIBLE
+
         protectionSwitch.setOnCheckedChangeListener(null)
         protectionSwitch.isChecked = prefs.protectionEnabled() && prefs.protectionOffAt() == null
         protectionSwitch.setOnCheckedChangeListener { _, checked -> onProtectionToggled(checked) }
+        val offAt = prefs.protectionOffAt()
+        protectionNote.text = when {
+            offAt != null -> getString(R.string.protection_note_pending, formatDateTime(offAt))
+            prefs.protectionEnabled() -> getString(R.string.protection_note_on)
+            else -> getString(R.string.protection_note_off)
+        }
+
         val w = prefs.nightWindow()
+        nightFromButton.text = getString(R.string.night_from_btn, formatTime(w.start))
+        nightToButton.text = getString(R.string.night_to_btn, formatTime(w.end))
         val nightApps = prefs.rules().values.count { it.night }
         val pendingNight = prefs.pendingNightWindow()
         nightText.text = buildString {
-            if (nightApps == 0) {
-                append(getString(R.string.night_summary_none, formatTime(w.start), formatTime(w.end)))
-            } else {
-                append(getString(R.string.night_summary_count, formatTime(w.start), formatTime(w.end), nightApps))
-            }
+            append(
+                if (nightApps == 0) getString(R.string.night_apps_none)
+                else getString(R.string.night_apps_count, nightApps)
+            )
             if (w.coversNow() && nightApps > 0) append("\n").append(getString(R.string.night_active_now))
             if (pendingNight != null) {
                 append("\n").append(
                     getString(R.string.night_pending, formatTime(pendingNight.start), formatTime(pendingNight.end))
                 )
             }
-        }
-
-        val offAt = prefs.protectionOffAt()
-        protectionNote.text = when {
-            offAt != null -> getString(R.string.protection_note_pending, formatDateTime(offAt))
-            prefs.protectionEnabled() -> getString(R.string.protection_note_on)
-            else -> getString(R.string.protection_note_off)
+            append("\n").append(getString(R.string.night_hint))
         }
     }
 
@@ -351,6 +394,25 @@ class MainActivity : Activity() {
             false
         }
 
+    // ---------- Нічний режим ----------
+
+    private fun pickNightEdge(isStart: Boolean) {
+        val current = prefs.pendingNightWindow() ?: prefs.nightWindow()
+        val minute = if (isStart) current.start else current.end
+        TimePickerDialog(this, { _, h, m ->
+            val value = h * 60 + m
+            val window = if (isStart) NightWindow(value, current.end) else NightWindow(current.start, value)
+            if (window.start == window.end) {
+                Toast.makeText(this, getString(R.string.toast_night_same), Toast.LENGTH_LONG).show()
+            } else {
+                showResult(prefs.setNightWindow(window))
+                refreshStatus()
+            }
+        }, minute / 60, minute % 60, true).apply {
+            setTitle(getString(if (isStart) R.string.night_from_title else R.string.night_to_title))
+        }.show()
+    }
+
     // ---------- Список додатків ----------
 
     private fun loadApps() {
@@ -396,98 +458,124 @@ class MainActivity : Activity() {
         }
     }
 
-    // ---------- Нічний режим ----------
+    // ---------- Вікно правил додатка ----------
 
-    private fun pickNightWindow() {
-        val current = prefs.pendingNightWindow() ?: prefs.nightWindow()
-        TimePickerDialog(this, { _, h1, m1 ->
-            val start = h1 * 60 + m1
-            TimePickerDialog(this, { _, h2, m2 ->
-                val end = h2 * 60 + m2
-                if (start == end) {
-                    Toast.makeText(this, getString(R.string.toast_night_same), Toast.LENGTH_LONG).show()
-                } else {
-                    showResult(prefs.setNightWindow(NightWindow(start, end)))
-                    refreshStatus()
-                }
-            }, current.end / 60, current.end % 60, true).apply {
-                setTitle(getString(R.string.night_to_title))
-            }.show()
-        }, current.start / 60, current.start % 60, true).apply {
-            setTitle(getString(R.string.night_from_title))
-        }.show()
-    }
-
-    // ---------- Діалог правил ----------
-
-    private fun minutesField(value: Int?, hintText: String) = EditText(this).apply {
+    private fun numberField(value: Int?, hintText: String) = EditText(this).apply {
         inputType = InputType.TYPE_CLASS_NUMBER
         hint = hintText
         setText(value?.toString() ?: "")
         setSelectAllOnFocus(true)
     }
 
-    /** Ряд швидких кнопок: 5 хв, 10, 15, 30, 45, 1 год. */
-    private fun presets(target: EditText) = HorizontalScrollView(this).apply {
-        isHorizontalScrollBarEnabled = false
-        val row = LinearLayout(this@MainActivity).apply { orientation = LinearLayout.HORIZONTAL }
-        for (m in PRESET_MINUTES) {
-            row.addView(Button(this@MainActivity).apply {
-                text = formatMinutes(this@MainActivity, m)
-                textSize = 12f
-                setAllCaps(false)
-                minWidth = 0
-                minimumWidth = 0
-                setPadding(dp(10), 0, dp(10), 0)
+    /** Ряд «чипів» швидкого вибору; чип, що збігається з полем, підсвічується. */
+    private fun chipRow(target: EditText, values: List<Int>, labelOf: (Int) -> String): View {
+        val chips = mutableListOf<Pair<Int, TextView>>()
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        for (v in values) {
+            val chip = TextView(this).apply {
+                text = labelOf(v)
+                textSize = 13f
+                setSingleLine(true)
+                setPadding(dp(14), dp(7), dp(14), dp(7))
                 setOnClickListener {
-                    target.setText(m.toString())
+                    target.setText(v.toString())
                     target.setSelection(target.text.length)
                 }
-            })
+            }
+            row.addView(chip, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { marginEnd = dp(6) })
+            chips.add(v to chip)
         }
-        addView(row)
+        fun refresh() {
+            val current = target.text.toString().toIntOrNull()
+            for ((value, chip) in chips) styleChip(chip, value == current)
+        }
+        target.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) = refresh()
+        })
+        refresh()
+        return HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            setPadding(0, dp(2), 0, dp(4))
+            addView(row)
+        }
     }
 
-    private fun label(text: String) = TextView(this).apply {
+    private fun styleChip(chip: TextView, selected: Boolean) {
+        chip.background = Look.rounded(if (selected) Look.ACCENT_FILL else Look.chip(this), dpf(16))
+        chip.setTextColor(if (selected) Look.WHITE else Look.text(this))
+    }
+
+    private fun dialogSection(title: String) = TextView(this).apply {
+        text = title
+        textSize = 15f
+        setTypeface(typeface, Typeface.BOLD)
+        setTextColor(Look.text(this@MainActivity))
+        setPadding(0, dp(16), 0, dp(2))
+    }
+
+    private fun fieldLabel(text: String) = mutedText(13f).apply {
         this.text = text
-        textSize = 14f
-        setPadding(0, dp(12), 0, 0)
+        setPadding(0, dp(8), 0, 0)
     }
 
     private fun showLimitDialog(app: AppItem) {
         val current = prefs.rules()[app.pkg]
         val shown = prefs.pendingRules()[app.pkg] ?: current ?: Rule()
+        val minutesLabel: (Int) -> String = { formatMinutes(this, it) }
 
-        val weekdayInput = minutesField(shown.weekday, getString(R.string.hint_no_limit))
-        val weekendInput = minutesField(shown.weekend, getString(R.string.hint_same_as_weekdays))
-        val opensInput = minutesField(shown.opens, getString(R.string.hint_no_limit))
+        val weekdayInput = numberField(shown.weekday, getString(R.string.hint_no_limit))
+        val weekendInput = numberField(shown.weekend, getString(R.string.hint_same_as_weekdays))
+        val opensInput = numberField(shown.opens, getString(R.string.hint_no_limit))
         val nightBox = CheckBox(this).apply {
             val w = prefs.nightWindow()
             text = getString(R.string.night_checkbox, formatTime(w.start), formatTime(w.end))
             isChecked = shown.night
         }
 
+        var dialog: AlertDialog? = null
         val form = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(24), dp(4), dp(24), 0)
-            addView(label(getString(R.string.label_weekday)))
+            setPadding(dp(24), 0, dp(24), dp(8))
+
+            addView(dialogSection("⏱  " + getString(R.string.dlg_time)))
+            addView(fieldLabel(getString(R.string.dlg_weekdays)))
             addView(weekdayInput)
-            addView(presets(weekdayInput))
-            addView(label(getString(R.string.label_weekend)))
+            addView(chipRow(weekdayInput, PRESET_MINUTES, minutesLabel))
+            addView(fieldLabel(getString(R.string.dlg_weekends)))
             addView(weekendInput)
-            addView(presets(weekendInput))
-            addView(label(getString(R.string.label_opens)))
+            addView(chipRow(weekendInput, PRESET_MINUTES, minutesLabel))
+
+            addView(dialogSection("🚪  " + getString(R.string.dlg_opens)))
             addView(opensInput)
-            addView(nightBox.apply { setPadding(0, dp(12), 0, 0) })
-            addView(TextView(this@MainActivity).apply {
+            addView(chipRow(opensInput, PRESET_OPENS) { it.toString() })
+
+            addView(dialogSection("🌙  " + getString(R.string.section_night)))
+            addView(nightBox)
+
+            addView(mutedText(12f).apply {
                 text = getString(R.string.rule_footer)
-                textSize = 12f
-                setTextColor(Color.GRAY)
-                setPadding(0, dp(12), 0, dp(8))
+                setPadding(0, dp(14), 0, 0)
             })
+
+            if (current != null) {
+                addView(TextView(this@MainActivity).apply {
+                    text = getString(R.string.btn_remove_limits)
+                    textSize = 14f
+                    setTextColor(Look.danger(this@MainActivity))
+                    setPadding(0, dp(14), 0, dp(4))
+                    setOnClickListener {
+                        applyRule(app.pkg, Rule())
+                        dialog?.dismiss()
+                    }
+                })
+            }
         }
 
-        val builder = AlertDialog.Builder(this)
+        val created = AlertDialog.Builder(this)
             .setTitle(app.label)
             .setView(ScrollView(this).apply { addView(form) })
             .setPositiveButton(R.string.btn_save) { _, _ ->
@@ -501,10 +589,9 @@ class MainActivity : Activity() {
                 applyRule(app.pkg, rule)
             }
             .setNegativeButton(R.string.btn_cancel, null)
-        if (current != null) {
-            builder.setNeutralButton(R.string.btn_remove_all) { _, _ -> applyRule(app.pkg, Rule()) }
-        }
-        builder.show()
+            .create()
+        dialog = created
+        created.show()
     }
 
     private fun applyRule(pkg: String, rule: Rule) {
@@ -562,20 +649,27 @@ class MainActivity : Activity() {
                 val name = TextView(this@MainActivity).apply {
                     textSize = 16f
                     setTypeface(typeface, Typeface.BOLD)
+                    setTextColor(Look.text(this@MainActivity))
                 }
                 val subtitle = TextView(this@MainActivity).apply { textSize = 13f }
                 val texts = LinearLayout(this@MainActivity).apply {
                     orientation = LinearLayout.VERTICAL
-                    setPadding(dp(12), 0, 0, 0)
+                    setPadding(dp(14), 0, 0, 0)
                     addView(name)
                     addView(subtitle)
                 }
                 row = LinearLayout(this@MainActivity).apply {
                     orientation = LinearLayout.HORIZONTAL
                     gravity = Gravity.CENTER_VERTICAL
-                    setPadding(dp(16), dp(10), dp(16), dp(10))
-                    addView(icon, LinearLayout.LayoutParams(dp(40), dp(40)))
+                    setPadding(dp(20), dp(10), dp(16), dp(10))
+                    addView(icon, LinearLayout.LayoutParams(dp(42), dp(42)))
                     addView(texts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+                    addView(TextView(this@MainActivity).apply {
+                        text = "›"
+                        textSize = 22f
+                        setTextColor(Look.muted(this@MainActivity))
+                        setPadding(dp(8), 0, 0, 0)
+                    })
                 }
                 holder = RowHolder(icon, name, subtitle)
                 row.tag = holder
@@ -624,28 +718,97 @@ class MainActivity : Activity() {
             holder.subtitle.text = sb.toString()
             holder.subtitle.setTextColor(
                 when {
-                    blocked -> Color.parseColor("#C92A2A")
-                    rule != null -> Color.parseColor("#3B5BDB")
-                    else -> Color.GRAY
+                    blocked -> Look.danger(this@MainActivity)
+                    rule != null -> Look.accentText(this@MainActivity)
+                    else -> Look.muted(this@MainActivity)
                 }
             )
             return row
         }
     }
 
-    // ---------- Допоміжне ----------
+    // ---------- Будівельні блоки інтерфейсу ----------
 
-    private fun sectionTitle(text: String) = TextView(this).apply {
+    /** Секція-картка з заокругленими кутами. */
+    private fun card() = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        background = Look.rounded(Look.card(this@MainActivity), dpf(16))
+        setPadding(dp(16), dp(14), dp(16), dp(14))
+    }
+
+    private fun cardParams() = LinearLayout.LayoutParams(
+        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+    ).apply { topMargin = dp(10) }
+
+    private fun cardTitle(text: String) = TextView(this).apply {
         this.text = text
-        textSize = 18f
+        textSize = 16f
         setTypeface(typeface, Typeface.BOLD)
-        setPadding(0, dp(16), 0, dp(6))
+        setTextColor(Look.text(this@MainActivity))
+        setPadding(0, 0, 0, dp(8))
+    }
+
+    private fun mutedText(size: Float) = TextView(this).apply {
+        textSize = size
+        setTextColor(Look.muted(this@MainActivity))
+    }
+
+    /** Підпис ліворуч, елемент керування праворуч. */
+    private fun settingRow(label: String, control: View) = LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        addView(TextView(this@MainActivity).apply {
+            text = label
+            textSize = 15f
+            setTextColor(Look.text(this@MainActivity))
+        }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        addView(control)
+    }
+
+    /** Сегментований перемикач: кілька варіантів, вибраний підсвічено. */
+    private fun segmented(
+        options: List<Pair<String, String>>,
+        selected: String,
+        onPick: (String) -> Unit
+    ) = LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL
+        background = Look.rounded(Look.chip(this@MainActivity), dpf(18))
+        setPadding(dp(3), dp(3), dp(3), dp(3))
+        for ((code, label) in options) {
+            val on = code == selected
+            addView(TextView(this@MainActivity).apply {
+                text = label
+                textSize = 13f
+                gravity = Gravity.CENTER
+                setSingleLine(true)
+                setPadding(dp(12), dp(6), dp(12), dp(6))
+                setTextColor(if (on) Look.WHITE else Look.text(this@MainActivity))
+                if (on) background = Look.rounded(Look.ACCENT_FILL, dpf(15))
+                setOnClickListener { if (!on) onPick(code) }
+            })
+        }
+    }
+
+    /** Велика кнопка-«пігулка» з часом нічного режиму. */
+    private fun pill(onClick: () -> Unit) = TextView(this).apply {
+        textSize = 16f
+        setTypeface(typeface, Typeface.BOLD)
+        setTextColor(Look.accentText(this@MainActivity))
+        background = Look.rounded(Look.chip(this@MainActivity), dpf(18))
+        setPadding(dp(16), dp(8), dp(16), dp(8))
+        setOnClickListener { onClick() }
+    }
+
+    private fun smallButton(label: String, onClick: () -> Unit) = Button(this).apply {
+        text = label
+        setOnClickListener { onClick() }
     }
 
     private fun permissionRow(status: TextView, button: Button) = LinearLayout(this).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
-        status.textSize = 15f
+        status.textSize = 14f
+        status.setTextColor(Look.text(this@MainActivity))
         addView(status, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         addView(button)
     }
@@ -653,6 +816,7 @@ class MainActivity : Activity() {
     companion object {
         private const val REQ_NOTIFICATIONS = 1
         private val PRESET_MINUTES = listOf(5, 10, 15, 30, 45, 60)
+        private val PRESET_OPENS = listOf(3, 5, 10, 20)
 
         fun formatTime(minuteOfDay: Int): String =
             String.format(java.util.Locale.ROOT, "%02d:%02d", minuteOfDay / 60, minuteOfDay % 60)
