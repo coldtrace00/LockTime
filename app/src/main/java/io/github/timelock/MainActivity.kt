@@ -149,14 +149,16 @@ class MainActivity : Activity() {
         batteryButton.visibility = if (noBatteryLimit) View.GONE else View.VISIBLE
 
         protectionSwitch.setOnCheckedChangeListener(null)
-        protectionSwitch.isChecked = prefs.protectionEnabled()
+        protectionSwitch.isChecked = prefs.protectionEnabled() && prefs.protectionOffAt() == null
         protectionSwitch.setOnCheckedChangeListener { _, checked -> onProtectionToggled(checked) }
+        val offAt = prefs.protectionOffAt()
         protectionNote.text = when {
-            prefs.protectionOffPending() -> "Захист вимкнеться завтра."
+            offAt != null -> "Захист буде знято ${formatDateTime(offAt)}. Після цього LockTime можна " +
+                "видалити. Передумали — увімкніть перемикач знову."
             prefs.protectionEnabled() -> "Увімкнено: екрани налаштувань, де можна видалити, зупинити " +
                 "чи вимкнути LockTime, одразу закриваються."
             else -> "Коли увімкнено, LockTime не можна видалити, зупинити чи вимкнути в налаштуваннях. " +
-                "Вимкнути захист можна тут — подіє з наступного дня."
+                "Вимкнути захист можна тут — подіє через 72 години."
         }
     }
 
@@ -225,7 +227,7 @@ class MainActivity : Activity() {
                 .setMessage(
                     "Поки захист увімкнено, сторінки налаштувань з LockTime (видалення, " +
                         "примусова зупинка, вимкнення служби) будуть одразу закриватися.\n\n" +
-                        "Вимкнути захист можна лише тут, і подіє це з наступного дня."
+                        "Вимкнути захист можна лише тут, і подіє це через 72 години."
                 )
                 .setPositiveButton("Увімкнути") { _, _ ->
                     prefs.setProtection(true)
@@ -235,10 +237,19 @@ class MainActivity : Activity() {
                 .setOnCancelListener { refreshStatus() }
                 .show()
         } else {
-            if (prefs.setProtection(false) == Prefs.Result.TOMORROW) {
-                Toast.makeText(this, "Захист вимкнеться завтра", Toast.LENGTH_LONG).show()
-            }
+            val offAt = prefs.setProtection(false)
             refreshStatus()
+            if (offAt != null) {
+                AlertDialog.Builder(this)
+                    .setTitle("Захист буде знято через 72 години")
+                    .setMessage(
+                        "Видалити LockTime можна буде ${formatDateTime(offAt)}.\n\n" +
+                            "До того часу захист працює як і раніше. Якщо передумаєте — " +
+                            "увімкніть перемикач знову, і відлік скасується."
+                    )
+                    .setPositiveButton("Зрозуміло", null)
+                    .show()
+            }
         }
     }
 
@@ -436,6 +447,10 @@ class MainActivity : Activity() {
     }
 
     companion object {
+        fun formatDateTime(millis: Long): String =
+            java.text.SimpleDateFormat("d.MM.yyyy 'о' HH:mm", java.util.Locale.getDefault())
+                .format(java.util.Date(millis))
+
         fun formatMinutes(minutes: Int): String {
             val h = minutes / 60
             val m = minutes % 60

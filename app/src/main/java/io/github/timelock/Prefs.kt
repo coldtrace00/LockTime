@@ -7,7 +7,8 @@ import java.time.LocalDate
  * Налаштування лімітів.
  *
  * Головне правило: посилити обмеження можна одразу, а послабити
- * (збільшити ліміт, прибрати додаток, вимкнути захист) — лише з наступного дня.
+ * (збільшити ліміт, прибрати додаток) — лише з наступного дня.
+ * Захист від видалення знімається лише через 72 години після запиту.
  * Так у момент спокуси не вийде просто зайти й зняти блок.
  */
 class Prefs(context: Context) {
@@ -67,29 +68,33 @@ class Prefs(context: Context) {
         return sp.getBoolean(KEY_PROTECTION, false)
     }
 
-    fun protectionOffPending(): Boolean {
+    /** Коли захист буде знято (мілісекунди), або null, якщо зняття не заплановано. */
+    fun protectionOffAt(): Long? {
         applyPendingIfDue()
-        return sp.getBoolean(KEY_PROTECTION_OFF_PENDING, false)
+        val at = sp.getLong(KEY_PROTECTION_OFF_AT, 0L)
+        return if (at > 0L) at else null
     }
 
+    /**
+     * Увімкнути захист — одразу (і скасувати заплановане зняття).
+     * Вимкнути — лише через [PROTECTION_OFF_DELAY_MS]; повертає час зняття.
+     */
     @Synchronized
-    fun setProtection(on: Boolean): Result {
+    fun setProtection(on: Boolean): Long? {
         applyPendingIfDue()
-        val current = sp.getBoolean(KEY_PROTECTION, false)
         if (on) {
-            val wasPendingOff = sp.getBoolean(KEY_PROTECTION_OFF_PENDING, false)
             sp.edit()
                 .putBoolean(KEY_PROTECTION, true)
-                .remove(KEY_PROTECTION_OFF_PENDING)
+                .remove(KEY_PROTECTION_OFF_AT)
                 .apply()
-            return if (current && !wasPendingOff) Result.UNCHANGED else Result.APPLIED
+            return null
         }
-        if (!current) return Result.UNCHANGED
-        sp.edit()
-            .putBoolean(KEY_PROTECTION_OFF_PENDING, true)
-            .putLong(KEY_PENDING_DAY, today() + 1)
-            .apply()
-        return Result.TOMORROW
+        if (!sp.getBoolean(KEY_PROTECTION, false)) return null
+        val existing = sp.getLong(KEY_PROTECTION_OFF_AT, 0L)
+        if (existing > 0L) return existing // повторне натискання не скорочує очікування
+        val at = System.currentTimeMillis() + PROTECTION_OFF_DELAY_MS
+        sp.edit().putLong(KEY_PROTECTION_OFF_AT, at).apply()
+        return at
     }
 
     private fun save(active: Map<String, Int>, pending: Map<String, Int>, schedule: Boolean) {
@@ -102,6 +107,11 @@ class Prefs(context: Context) {
 
     @Synchronized
     private fun applyPendingIfDue() {
+        val offAt = sp.getLong(KEY_PROTECTION_OFF_AT, 0L)
+        if (offAt > 0L && System.currentTimeMillis() >= offAt) {
+            sp.edit().putBoolean(KEY_PROTECTION, false).remove(KEY_PROTECTION_OFF_AT).apply()
+        }
+
         val day = sp.getLong(KEY_PENDING_DAY, Long.MAX_VALUE)
         if (today() < day) return
 
@@ -110,14 +120,11 @@ class Prefs(context: Context) {
         for ((pkg, min) in pending) {
             if (min <= 0) active.remove(pkg) else active[pkg] = min
         }
-        val e = sp.edit()
+        sp.edit()
             .putString(KEY_ACTIVE, encode(active))
             .remove(KEY_PENDING)
             .remove(KEY_PENDING_DAY)
-        if (sp.getBoolean(KEY_PROTECTION_OFF_PENDING, false)) {
-            e.putBoolean(KEY_PROTECTION, false).remove(KEY_PROTECTION_OFF_PENDING)
-        }
-        e.apply()
+            .apply()
     }
 
     private fun decode(s: String?): MutableMap<String, Int> {
@@ -141,6 +148,7 @@ class Prefs(context: Context) {
         private const val KEY_PENDING = "pending_limits"
         private const val KEY_PENDING_DAY = "pending_day"
         private const val KEY_PROTECTION = "protection"
-        private const val KEY_PROTECTION_OFF_PENDING = "protection_off_pending"
+        private const val KEY_PROTECTION_OFF_AT = "protection_off_at"
+        const val PROTECTION_OFF_DELAY_MS = 72L * 60 * 60 * 1000
     }
 }

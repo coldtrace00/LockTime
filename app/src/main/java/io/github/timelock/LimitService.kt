@@ -110,7 +110,7 @@ class LimitService : AccessibilityService() {
             lastBlockAt = now
             Toast.makeText(
                 this,
-                "Захист LockTime увімкнено. Вимкнути його можна в додатку — подіє з завтра.",
+                "Захист LockTime увімкнено. Зняти його можна в додатку — через 72 години.",
                 Toast.LENGTH_LONG
             ).show()
         }
