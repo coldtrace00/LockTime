@@ -189,4 +189,11 @@
     <string name="consent_no">No, thanks</string>
     <string name="install_perm_title">Permission to install</string>
     <string name="install_perm_message">To install the update, Android needs you to allow “Install unknown apps” for LockTime. The page will be in the phone’s language — turn the switch on (“Allow from this source”), come back and tap “Update” again.</string>
+    <string name="mode_same">Every day</string>
+    <string name="mode_week">Weekdays / weekends</string>
+    <string name="mode_days">Per day</string>
+    <string name="chip_none">No limit</string>
+    <string name="suffix_min">min</string>
+    <string name="suffix_times">times</string>
+    <string name="rule_night_hint">Blocks the app completely during night mode.</string>
 </resources>

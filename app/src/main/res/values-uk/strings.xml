@@ -188,4 +188,11 @@
     <string name="consent_no">Ні, не треба</string>
     <string name="install_perm_title">Дозвіл на встановлення</string>
     <string name="install_perm_message">Щоб встановити оновлення, Android попросить дозволити «Встановлення невідомих додатків» для LockTime. Сторінка буде мовою телефона — увімкніть перемикач (англійською «Allow from this source»), поверніться й натисніть «Оновити» ще раз.</string>
+    <string name="mode_same">Щодня</string>
+    <string name="mode_week">Будні / вихідні</string>
+    <string name="mode_days">По днях</string>
+    <string name="chip_none">Без ліміту</string>
+    <string name="suffix_min">хв</string>
+    <string name="suffix_times">раз</string>
+    <string name="rule_night_hint">Повністю блокує додаток у нічний режим.</string>
 </resources>

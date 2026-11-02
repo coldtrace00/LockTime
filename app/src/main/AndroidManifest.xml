@@ -41,6 +41,11 @@
         </activity>
 
         <activity
+            android:name=".RuleActivity"
+            android:exported="false"
+            android:windowSoftInputMode="stateHidden|adjustResize" />
+
+        <activity
             android:name=".AppPickerActivity"
             android:exported="false"
             android:windowSoftInputMode="stateHidden|adjustResize" />
