@@ -24,8 +24,8 @@
 
 ## Встановлення
 
-1. Завантажте `LockTime.apk` з вкладки **Releases** (або **Actions** → останній
-   запуск → `LockTime-apk`).
+1. Завантажте [LockTime.apk](https://github.com/coldtrace00/LockTime/releases/latest/download/LockTime.apk)
+   (вкладка **Releases**).
 2. Відкрийте файл на телефоні й дозвольте встановлення з цього джерела.
 3. Відкрийте LockTime і надайте три дозволи вгорі екрана:
    - **Статистика використання** — щоб знати, скільки часу ви провели в додатку;
@@ -41,13 +41,8 @@
 
 ## Збірка з коду
 
-Автоматично: кожен push у `main` збирає APK у GitHub Actions. Щоб опублікувати
-реліз, створіть тег:
-
-```bash
-git tag v1.0
-git push origin v1.0
-```
+Автоматично: кожен push у `main` збирає APK у GitHub Actions і публікує його
+у вкладці **Releases**.
 
 Локально (потрібен Android SDK або Android Studio):
 
