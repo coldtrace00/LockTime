@@ -37,6 +37,13 @@ jobs:
           ./gradlew assembleRelease --stacktrace
           cp app/build/outputs/apk/release/app-release.apk LockTime.apk
 
+      # Відбиток сертифіката, яким підписано APK (публічна інформація, не секрет).
+      # За ним можна перевірити, що APK зібрано саме з цього репозиторію.
+      - name: Show signing certificate
+        run: |
+          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          "$APKSIGNER" verify --print-certs LockTime.apk | grep -E "SHA-256|DN"
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
