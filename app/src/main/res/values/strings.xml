@@ -203,4 +203,7 @@
     <string name="protection_inactive">Protection is NOT working right now: the Accessibility service is off, so LockTime can be uninstalled.</string>
     <string name="protection_needs_a11y_title">Turn on the service first</string>
     <string name="protection_needs_a11y_message">Uninstall protection works through the Accessibility service — it’s what closes the uninstall screen. While the service is off, protection would only exist on paper.\n\nTurn on the service, then come back and enable protection.</string>
+    <string name="service_channel">Service status</string>
+    <string name="service_off_title">LockTime isn’t blocking after the update</string>
+    <string name="service_off_text">Your phone turned off the Accessibility service while updating. Tap to turn it back on — it takes a few seconds.</string>
 </resources>

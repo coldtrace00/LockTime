@@ -202,4 +202,7 @@
     <string name="protection_inactive">Захист зараз НЕ діє: служба спеціальних можливостей вимкнена, тому LockTime можна видалити.</string>
     <string name="protection_needs_a11y_title">Спершу увімкніть службу</string>
     <string name="protection_needs_a11y_message">Захист від видалення працює через службу спеціальних можливостей — саме вона закриває сторінку видалення. Поки служба вимкнена, захист був би лише «на папері».\n\nУвімкніть службу, а потім поверніться й увімкніть захист.</string>
+    <string name="service_channel">Стан служби</string>
+    <string name="service_off_title">LockTime не блокує після оновлення</string>
+    <string name="service_off_text">Телефон вимкнув службу спеціальних можливостей під час оновлення. Торкніться, щоб увімкнути знову — це кілька секунд.</string>
 </resources>

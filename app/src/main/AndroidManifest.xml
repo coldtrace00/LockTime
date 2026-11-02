@@ -62,6 +62,15 @@
             android:taskAffinity=""
             android:theme="@android:style/Theme.Material.NoActionBar" />
 
+        <!-- Нагадування увімкнути службу, якщо телефон вимкнув її після оновлення LockTime -->
+        <receiver
+            android:name=".UpdatedReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
         <receiver
             android:name=".LimitWidget"
             android:exported="true"
