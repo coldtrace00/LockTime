@@ -15,8 +15,12 @@ No passwords, no "5 more minutes", no "ignore for today".
 
 ## Principles
 
-- **No internet.** The app has no `INTERNET` permission, so Android physically
-  won't let it send anything. No accounts, no server, no ads, no analytics.
+- **Internet only if you allow it, and only for updates.** Update checks are off
+  until you agree in a dialog that explains exactly what happens. The only network
+  code is [`Updater.kt`](app/src/main/java/io/github/timelock/Updater.kt): it asks
+  GitHub for the latest version number and, on "Update", downloads it. Your apps,
+  usage and settings are never sent. Turn the switch off and LockTime makes no
+  requests at all. No accounts, no server, no ads, no analytics.
 - **No third-party libraries.** Just the Android SDK and Kotlin. The whole code
   base is a handful of files you can actually read end to end.
 - **Data stays on the phone.** Limits are stored on the device; cloud backup is
@@ -35,7 +39,7 @@ No passwords, no "5 more minutes", no "ignore for today".
 | Blocking | Back to the home screen plus a screen explaining why. Checked every 3 s, so it kicks in even mid-scroll. |
 | Warnings | Notifications 15, 10 and 5 min before the time limit runs out, and when 2 opens are left / on the last allowed open. Each once a day. |
 | Evening summary | One notification at a time you choose (default 21:00): time and opens in apps with limits today. |
-| Updates | The "Updates" card shows the installed version and opens the latest release in the browser — LockTime itself has no internet access. Install the new APK over the old one; settings stay. |
+| Updates | Optional, with your consent: "Check now" asks GitHub for the latest version; if there's a newer one, "Update" downloads it and opens the system installer. Settings stay. Can be turned off any time. |
 | Widget | Home-screen widget showing time and opens left today. Tap to open LockTime. |
 | Statistics | How much time went into each app over the last 7 days. |
 | Appearance | Light, dark or auto theme (follows the phone); UA \| EN language switch. |
@@ -98,14 +102,16 @@ There is always an emergency exit — [safe mode](#honest-limitations).
 | [`LimitService.kt`](app/src/main/java/io/github/timelock/LimitService.kt) | The accessibility service. Receives "another app is on screen" events from Android, checks the current app every 3 s, blocks (time, opens, night), reads browser address bars, sends warnings, and with protection on closes settings screens that mention LockTime. |
 | [`UsageTracker.kt`](app/src/main/java/io/github/timelock/UsageTracker.kt) | Counts screen time and opens since midnight from system `UsageEvents`, plus 7-day totals for statistics. |
 | [`Prefs.kt`](app/src/main/java/io/github/timelock/Prefs.kt) | App rules (`Rule`), the night window (`NightWindow`), the "tighten now, loosen tomorrow" logic and the 72-hour protection countdown. |
-| [`MainActivity.kt`](app/src/main/java/io/github/timelock/MainActivity.kt) | Main screen: permissions, protection, night mode, app list and the rules dialog. |
+| [`MainActivity.kt`](app/src/main/java/io/github/timelock/MainActivity.kt) | Main screen with three tabs: Today (progress), Limits (rules, night mode), Settings. Also the rules dialog. |
+| [`AppPickerActivity.kt`](app/src/main/java/io/github/timelock/AppPickerActivity.kt) | Searchable list for choosing an app. |
+| [`Updater.kt`](app/src/main/java/io/github/timelock/Updater.kt) | The only network code: opt-in update check and download. |
 | [`StatsActivity.kt`](app/src/main/java/io/github/timelock/StatsActivity.kt) | Weekly statistics. |
 | [`LimitWidget.kt`](app/src/main/java/io/github/timelock/LimitWidget.kt) | Home-screen widget. |
 | [`BlockActivity.kt`](app/src/main/java/io/github/timelock/BlockActivity.kt) | Block screen with the reason (time, opens, night). |
 | [`Lang.kt`](app/src/main/java/io/github/timelock/Lang.kt) | Interface language: Ukrainian by default, switchable to English. |
 | [`Look.kt`](app/src/main/java/io/github/timelock/Look.kt) | Theme (auto / light / dark) and the colors for each. |
 | [`res/values*/strings.xml`](app/src/main/res/) | UI texts: `values` — English, `values-uk` — Ukrainian. |
-| [`AndroidManifest.xml`](app/src/main/AndroidManifest.xml) | The full list of permissions — you can verify there's no internet access. |
+| [`AndroidManifest.xml`](app/src/main/AndroidManifest.xml) | The full list of permissions with a comment on why each is needed. |
 
 ### Details
 
@@ -148,7 +154,7 @@ a week, daily totals longer; it's a few megabytes, not gigabytes.
 
 LockTime's own data is only its settings (rules, night window, theme, language) —
 a few kilobytes in the app's private storage, removed together with the app.
-Nothing leaves the phone.
+Nothing leaves the phone — except the optional update check described above, which sends no personal data.
 
 ## Honest limitations
 
